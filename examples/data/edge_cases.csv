@@ -1,0 +1,15 @@
+﻿name,city,score,comment
+José,São Paulo,91.5,acentuação
+Zoë,Kraków,88,
+田中,東京,77.25,全角の文字
+Ingrid,Tromsø,NA,missing score
+Ali,القاهرة,64,right-to-left text
+Emoji,🌍 Earth,99,🎉 party
+Short,row
+Long,row,50,one,two,three
+Spaces,  padded  , 42 ,  kept as written  
+Quoted,"Rome, Italy",70,"multi
+line"
+Negative,Oslo,-12.5,below zero
+Huge,Nowhere,1e308,very large
+Tiny,Nowhere,-1e308,very small

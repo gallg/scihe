@@ -1,0 +1,26 @@
+# build output
+/scihe
+*.test
+*.out
+coverage.*
+
+# local Python environment for the integration tests
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# leftovers of an interrupted save (buffer.go writeAtomic)
+.*.scihe-*
+
+# REPL state
+.nrepl-port
+
+# agent instructions and local tool settings
+.claude/
+.vibe/
+
+# editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
