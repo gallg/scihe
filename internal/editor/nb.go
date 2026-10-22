@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -1016,6 +1017,9 @@ func exNbOutput(e *Editor, a *exArgs) error {
 	return nil
 }
 
+// shellLineRe matches a `!command` line of a code cell.
+var shellLineRe = regexp.MustCompile(`(?m)^([ \t]*)!([^=]|$)`)
+
 func exNbExport(e *Editor, a *exArgs) error {
 	ks, err := e.notebookHere()
 	if err != nil {
@@ -1036,7 +1040,8 @@ func exNbExport(e *Editor, a *exArgs) error {
 		}
 		switch c.Type {
 		case "code":
-			sb.WriteString("# %%\n" + c.Source)
+			// `!command` lines are not Python: commented out like jupytext
+			sb.WriteString("# %%\n" + shellLineRe.ReplaceAllString(c.Source, "$1# !$2"))
 		default:
 			sb.WriteString("# %% [" + c.Type + "]\n")
 			for j, l := range strings.Split(c.Source, "\n") {

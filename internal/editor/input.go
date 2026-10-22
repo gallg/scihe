@@ -339,13 +339,22 @@ func (e *Editor) resetPending() {
 }
 
 func (e *Editor) mapsFor(base *keymap.Map[*Cmd]) []*keymap.Map[*Cmd] {
-	if lm := e.localMaps[e.win.buf.ID]; lm != nil && base == e.normalMap {
-		return []*keymap.Map[*Cmd]{lm, base}
+	b := e.win.buf
+	var ms []*keymap.Map[*Cmd]
+	switch base {
+	case e.normalMap:
+		if lm := e.localMaps[b.ID]; lm != nil {
+			ms = append(ms, lm)
+		}
+		if b.ReadOnly && b.Kind != buffer.KindFile && b.Kind != buffer.KindNotebook && e.readOnlyMap != nil {
+			ms = append(ms, e.readOnlyMap)
+		}
+	case e.visualMap:
+		if lm := e.localVisual[b.ID]; lm != nil {
+			ms = append(ms, lm)
+		}
 	}
-	if lm := e.localVisual[e.win.buf.ID]; lm != nil && base == e.visualMap {
-		return []*keymap.Map[*Cmd]{lm, base}
-	}
-	return []*keymap.Map[*Cmd]{base}
+	return append(ms, base)
 }
 
 // whichKeyNode returns the trie node for the which-key popup.

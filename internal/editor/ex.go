@@ -69,6 +69,7 @@ func init() {
 		{"bNext", 2, exBprev, "previous buffer", false},
 		{"bdelete", 2, exBdelete, "delete buffer", false},
 		{"bwipeout", 2, exBdelete, "delete buffer", false},
+		{"bdall", 3, exBdeleteAll, "delete all buffers (! = discard changes)", false},
 		{"buffers", 7, exLs, "buffer list (mark, close, rename, copy, save)", false},
 		{"ls", 2, exLs, "buffer list (mark, close, rename, copy, save)", false},
 		{"files", 5, exLs, "buffer list (mark, close, rename, copy, save)", false},
@@ -482,7 +483,9 @@ func (e *Editor) writeBuffer(b *buffer.Buffer, path string, force bool) error {
 		return err
 	}
 	if b.Kind == buffer.KindScratch && path != "" {
+		// an output buffer written to a file becomes an ordinary file
 		b.Kind = buffer.KindFile
+		b.ReadOnly = false
 	}
 	if b.Filetype == "" {
 		b.Filetype = syntax.Detect(b.Path, b.LineString(0))
@@ -621,7 +624,7 @@ func (e *Editor) reload(b *buffer.Buffer) error {
 		b.EndUndo(Pos{})
 		b.ReadOnly = ro
 	}
-	b.CRLF, b.NoEOL = nb.CRLF, nb.NoEOL
+	b.CRLF, b.NoEOL, b.BlankLine = nb.CRLF, nb.NoEOL, nb.BlankLine
 	b.MarkSaved()
 	e.recordModTime(b)
 	e.forWindows(func(w *Window) {
@@ -739,9 +742,77 @@ func exBdelete(e *Editor, a *exArgs) error {
 	return e.deleteBuffer(b, a.bang)
 }
 
+// exBdeleteAll deletes every buffer; without ! it keeps the modified
+// ones (and tables with staged edits, with their source).
+func exBdeleteAll(e *Editor, a *exArgs) error {
+	var kept []string
+	n := 0
+	for _, b := range e.listedBuffers() {
+		if !e.bufferAlive(b) {
+			continue
+		}
+		if !a.bang && e.unsavedWork(b) {
+			kept = append(kept, b.Name)
+			continue
+		}
+		if e.logInUse(b) {
+			continue // still written to: deleting it would lose the output
+		}
+		if err := e.deleteBuffer(b, true); err != nil {
+			return err
+		}
+		n++
+	}
+	if len(kept) > 0 {
+		return fmt.Errorf("E89: %d buffer(s) deleted; kept with unsaved changes: %s (add ! to discard)", n, strings.Join(kept, ", "))
+	}
+	e.infof("%d buffer(s) deleted", n)
+	return nil
+}
+
+// unsavedWork reports whether deleting b would lose changes: a modified
+// file or notebook, or a table view (or its source) with staged edits.
+func (e *Editor) unsavedWork(b *buffer.Buffer) bool {
+	if e.modified(b) && (b.Kind == buffer.KindFile || b.Kind == buffer.KindNotebook) {
+		return true
+	}
+	if tv := e.tables[b.ID]; tv != nil && tv.pending() {
+		return true
+	}
+	tv := e.tableOfSource(b)
+	return tv != nil && tv.pending()
+}
+
+// logInUse reports whether b is the log of a running :run / :git job,
+// of the jack-in server or of a live REPL session.
+func (e *Editor) logInUse(b *buffer.Buffer) bool {
+	if b.Kind != buffer.KindRepl {
+		return false
+	}
+	if b.Name == "*nrepl-server*" && e.jackInProc != nil {
+		return true
+	}
+	for name, s := range e.sessions {
+		if s != nil && s.Alive() && b.Name == "*repl:"+name+"*" {
+			return true
+		}
+	}
+	e.jobsMu.Lock()
+	defer e.jobsMu.Unlock()
+	for _, name := range e.jobs {
+		if name == b.Name {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Editor) deleteBuffer(b *buffer.Buffer, force bool) error {
-	if e.modified(b) && !force && (b.Kind == buffer.KindFile || b.Kind == buffer.KindNotebook) {
-		return fmt.Errorf("E89: No write since last change for buffer %d (add ! to override)", b.ID)
+	if !force && e.unsavedWork(b) {
+		if e.modified(b) && (b.Kind == buffer.KindFile || b.Kind == buffer.KindNotebook) {
+			return fmt.Errorf("E89: No write since last change for buffer %d (add ! to override)", b.ID)
+		}
+		return fmt.Errorf("E89: buffer %d has a table with staged edits: apply (:w) or discard (ZQ) them (add ! to override)", b.ID)
 	}
 	// pick a replacement for windows showing b
 	var repl *buffer.Buffer
@@ -1067,11 +1138,18 @@ func (e *Editor) globalCmd(a *exArgs, invert bool) error {
 			delete(b.Marks, rune(markBase+i))
 		}
 	}()
+	last := -1 // line the command last ran on
 	for i := range marks {
 		p, ok := b.Marks[rune(markBase+i)]
 		if !ok || p.Line >= b.LineCount() {
 			continue
 		}
+		// a mark moved off column 0 onto a line already done: its line
+		// was joined into that one (:g/x/j), so it is gone, as in vim
+		if p.Col != 0 && p.Line <= last {
+			continue
+		}
+		last = p.Line
 		e.win.cur = Pos{p.Line, 0}
 		if err := e.runEx(cmd); err != nil {
 			return err
@@ -1152,7 +1230,11 @@ func exYank(e *Editor, a *exArgs) error {
 }
 
 func exPut(e *Editor, a *exArgs) error {
-	reg := regArg(a)
+	// the argument is only a register name: :put 0 is register 0, not a count
+	var reg rune
+	if s := strings.TrimSpace(a.arg); s != "" {
+		reg = rune(s[0])
+	}
 	r, ok := e.regs.Get(reg)
 	if !ok {
 		return errors.New("E353: Nothing in register")
@@ -1779,6 +1861,7 @@ func (e *Editor) showOutput(name, text string) {
 	b := e.scratch(name, buffer.KindScratch)
 	delete(e.static, b.ID) // colours of a previous output
 	b.SetText(text)
+	b.ReadOnly = true
 	for _, w := range e.windows() {
 		if w.buf == b {
 			e.focus(w)

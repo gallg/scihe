@@ -16,6 +16,7 @@ Scihe is a modal terminal editor for working with data and code.
 | [Git](git.md) | The git interface |
 | [Differences from vim](vim-differences.md) | Notes for vim users |
 | [Development](development.md) | Building and testing |
+| [Changelog](changelog.md) | What changed in each version |
 
 Inside the editor, `:help` lists every key and command. Press `Space`
 and wait to see the keys available next.

@@ -82,6 +82,7 @@ type Editor struct {
 	insertMap    *keymap.Map[*Cmd]
 	localMaps    map[int]*keymap.Map[*Cmd] // per-buffer normal-mode keys
 	localVisual  map[int]*keymap.Map[*Cmd] // per-buffer visual-mode keys
+	readOnlyMap  *keymap.Map[*Cmd]         // q closes read-only special buffers
 	whichKey     bool
 	insertPend   []keymap.Key
 	replaying    int
@@ -576,9 +577,8 @@ func (e *Editor) removeBuffer(b *buffer.Buffer) {
 		k.close()
 		delete(e.kernels, b.ID)
 	}
-	if p := e.previews[b.ID]; p != nil {
-		delete(e.previews, b.ID)
-	}
+	preview := e.previews[b.ID]
+	delete(e.previews, b.ID)
 	for src, p := range e.previews {
 		if p.buf == b {
 			delete(e.previews, src)
@@ -599,6 +599,10 @@ func (e *Editor) removeBuffer(b *buffer.Buffer) {
 	delete(e.gitViews, b.ID)
 	delete(e.gitCommits, b.ID)
 	delete(e.tables, b.ID)
+	// the preview of a deleted markdown buffer goes with it
+	if preview != nil && e.bufferAlive(preview.buf) {
+		e.deleteBuffer(preview.buf, true)
+	}
 }
 
 // sortedBuffers returns listed buffers ordered by id.
@@ -679,6 +683,12 @@ func (e *Editor) quitAll(force bool) {
 		if mod := e.modifiedBuffers(); len(mod) > 0 {
 			e.errorf("E37: No write since last change for %q (add ! to override)", mod[0].Name)
 			return
+		}
+		for _, tv := range e.tables {
+			if tv.pending() {
+				e.errorf("E37: %s staged in %q: apply (:w) or discard (ZQ) them (add ! to override)", tv.changes(), tv.buf.Name)
+				return
+			}
 		}
 	}
 	e.quit = true

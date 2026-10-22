@@ -36,6 +36,7 @@ manage: just use your own terminal multiplexer.
   buffers automatically
 
 For more information please see the [Documentation](docs/index.md).
+What changed in each version is in the [Changelog](docs/changelog.md).
 
 Press `Space` or run `:help` inside the editor for every key and command.
 The full documentation lives in the [docs folder](docs/index.md).

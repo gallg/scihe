@@ -2,6 +2,7 @@ package repl
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -43,13 +44,19 @@ type NREPL struct {
 	addr    string
 	conn    net.Conn
 	mu      sync.Mutex
-	wmu     sync.Mutex // serializes socket writes
 	session string
 	nextID  int
 	pending map[string]func(map[string]any)
 	current string
 	closed  bool
 	onClose func(error)
+
+	// requests are written by writeLoop, so a server that stops reading
+	// never blocks the caller (the UI) or Close
+	wq    [][]byte      // encoded requests not yet written (c.mu)
+	wsig  chan struct{} // wakes writeLoop
+	wdone chan struct{} // closed by Close: writeLoop ends
+	wonce sync.Once
 }
 
 // FindNREPLPort looks for a .nrepl-port file in dir and its parents.
@@ -80,8 +87,10 @@ func DialNREPL(addr string, onClose func(error)) (*NREPL, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &NREPL{addr: addr, conn: conn, pending: map[string]func(map[string]any){}, onClose: onClose}
+	c := &NREPL{addr: addr, conn: conn, pending: map[string]func(map[string]any){}, onClose: onClose,
+		wsig: make(chan struct{}, 1), wdone: make(chan struct{})}
 	go c.readLoop()
+	go c.writeLoop()
 	done := make(chan string, 1)
 	c.send(map[string]any{"op": "clone"}, func(m map[string]any) {
 		if s, ok := m["new-session"].(string); ok {
@@ -94,6 +103,7 @@ func DialNREPL(addr string, onClose func(error)) (*NREPL, error) {
 		c.session = s
 		c.mu.Unlock()
 	case <-time.After(5 * time.Second):
+		c.stopWriter()
 		conn.Close()
 		return nil, errors.New("nREPL: no reply to clone")
 	}
@@ -103,13 +113,14 @@ func DialNREPL(addr string, onClose func(error)) (*NREPL, error) {
 // Name implements Session.
 func (c *NREPL) Name() string { return "nREPL " + c.addr }
 
-// send registers cb and writes msg. The write happens outside c.mu (under
-// a separate write lock) so the read loop is never blocked by a slow
-// socket. If current is true the request becomes the interrupt target.
+// send registers cb and queues msg for writeLoop; it never blocks on
+// the socket. If current is true the request becomes the interrupt
+// target. A failed write closes the connection, and the read loop then
+// ends the pending requests.
 func (c *NREPL) send(msg map[string]any, cb func(map[string]any), current bool) (string, error) {
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.closed {
-		c.mu.Unlock()
 		return "", errors.New("nREPL connection closed")
 	}
 	c.nextID++
@@ -118,25 +129,49 @@ func (c *NREPL) send(msg map[string]any, cb func(map[string]any), current bool) 
 	if c.session != "" {
 		msg["session"] = c.session
 	}
+	var buf bytes.Buffer
+	if err := Encode(&buf, msg); err != nil {
+		return "", err
+	}
 	c.pending[id] = cb
 	if current {
 		c.current = id
 	}
-	c.mu.Unlock()
-	c.wmu.Lock()
-	err := Encode(c.conn, msg)
-	c.wmu.Unlock()
-	if err != nil {
-		c.mu.Lock()
-		delete(c.pending, id)
-		if c.current == id {
-			c.current = ""
-		}
-		c.mu.Unlock()
-		return "", err
+	c.wq = append(c.wq, buf.Bytes())
+	select {
+	case c.wsig <- struct{}{}:
+	default:
 	}
 	return id, nil
 }
+
+// writeLoop writes queued requests in order.
+func (c *NREPL) writeLoop() {
+	for {
+		select {
+		case <-c.wsig:
+		case <-c.wdone:
+			return
+		}
+		for {
+			c.mu.Lock()
+			q := c.wq
+			c.wq = nil
+			c.mu.Unlock()
+			if len(q) == 0 {
+				break
+			}
+			for _, p := range q {
+				if _, err := c.conn.Write(p); err != nil {
+					c.conn.Close()
+					return
+				}
+			}
+		}
+	}
+}
+
+func (c *NREPL) stopWriter() { c.wonce.Do(func() { close(c.wdone) }) }
 
 func (c *NREPL) readLoop() {
 	r := bufio.NewReader(c.conn)
@@ -227,8 +262,20 @@ func (c *NREPL) Close() {
 	c.mu.Unlock()
 	if !closed {
 		c.send(map[string]any{"op": "close"}, func(map[string]any) {}, false)
+		// give the writer a moment to send it; a stalled server is cut off
+		deadline := time.Now().Add(500 * time.Millisecond)
+		for time.Now().Before(deadline) {
+			c.mu.Lock()
+			n := len(c.wq)
+			c.mu.Unlock()
+			if n == 0 {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
-	c.conn.Close()
+	c.stopWriter()
+	c.conn.Close() // also ends a write in progress
 }
 
 // Alive implements Session.

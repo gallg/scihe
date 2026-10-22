@@ -2,12 +2,14 @@ package notebook
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -31,6 +33,7 @@ type Event struct {
 	Evalue         string         `json:"evalue"`
 	Traceback      []string       `json:"traceback"`
 	Python         string         `json:"python"`
+	Pgid           int            `json:"pgid"` // "child": the running `!command` (0: none)
 }
 
 // Output converts an output event into an nbformat output object.
@@ -77,7 +80,35 @@ type Kernel struct {
 	closed bool
 	onEv   func(Event)
 	wg     sync.WaitGroup
+
+	// output written straight to fd 1/2 (child processes) is batched:
+	// an unbuffered child would otherwise send one event per line
+	rawMu    sync.Mutex
+	raw      []rawChunk
+	rawSize  int
+	rawTimer *time.Timer
+
+	// the driver ends each request with a sync marker on fd 1 and 2;
+	// "done" waits for both so direct output is not delivered after it
+	syncMu sync.Mutex
+	synced map[string]int // stream -> last request id synced
+	syncCh chan struct{}
+
+	child int // process group of the running `!command` (k.mu)
 }
+
+type rawChunk struct {
+	id   int
+	name string
+	text []byte
+}
+
+// rawDelay is how long direct output may wait to be batched;
+// rawMax flushes a batch early.
+const (
+	rawDelay = 15 * time.Millisecond
+	rawMax   = 64 << 10
+)
 
 // Start launches python running the driver in dir with env. onEvent is
 // called from background goroutines for every event.
@@ -126,7 +157,8 @@ func Start(python, dir string, env []string, onEvent func(Event)) (*Kernel, erro
 	pw.Close()
 	outW.Close()
 	errW.Close()
-	k := &Kernel{cmd: cmd, stdin: stdin, onEv: onEvent}
+	k := &Kernel{cmd: cmd, stdin: stdin, onEv: onEvent,
+		synced: map[string]int{}, syncCh: make(chan struct{}, 1)}
 	k.wg.Add(1)
 	go k.readProto(pr)
 	go k.readRaw(outR, "stdout")
@@ -142,6 +174,7 @@ func Start(python, dir string, env []string, onEvent func(Event)) (*Kernel, erro
 			pr.Close()
 		}
 		time.AfterFunc(time.Second, func() { outR.Close(); errR.Close() })
+		k.flushRaw()
 		k.mu.Lock()
 		k.closed = true
 		k.busy = false
@@ -165,6 +198,17 @@ func (k *Kernel) readProto(r io.ReadCloser) {
 		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
 			continue
 		}
+		if ev.Type == "child" {
+			k.mu.Lock()
+			k.child = ev.Pgid
+			k.mu.Unlock()
+			continue
+		}
+		if ev.Type == "done" {
+			k.waitSync(ev.ID)
+		}
+		// direct output read so far was written before this event
+		k.flushRaw()
 		if ev.Type == "done" {
 			k.mu.Lock()
 			if ev.ID == k.cur {
@@ -176,20 +220,134 @@ func (k *Kernel) readProto(r io.ReadCloser) {
 	}
 }
 
+// syncTag starts the driver's end-of-request marker on fd 1 and 2:
+// "\x1dSCIHE-SYNC <id>\x1d".
+const syncTag = "\x1dSCIHE-SYNC "
+
 // readRaw forwards output written directly to fd 1/2 (e.g. by subprocesses).
 func (k *Kernel) readRaw(r io.Reader, name string) {
-	buf := make([]byte, 4096)
+	buf := make([]byte, 32<<10)
+	var carry []byte // an incomplete marker from the previous read
 	for {
 		n, err := r.Read(buf)
 		if n > 0 {
 			k.mu.Lock()
 			id := k.cur
 			k.mu.Unlock()
-			k.onEv(Event{ID: id, Type: "stream", Name: name, Text: string(buf[:n])})
+			data := append(carry, buf[:n]...)
+			carry = nil
+			for {
+				i := bytes.Index(data, []byte(syncTag))
+				if i < 0 {
+					break
+				}
+				j := bytes.IndexByte(data[i+len(syncTag):], 0x1d)
+				if j < 0 {
+					break
+				}
+				k.addRaw(id, name, data[:i])
+				done, _ := strconv.Atoi(string(data[i+len(syncTag) : i+len(syncTag)+j]))
+				data = data[i+len(syncTag)+j+1:]
+				k.markSynced(name, done)
+			}
+			keep := partialMarker(data)
+			k.addRaw(id, name, data[:len(data)-keep])
+			carry = append([]byte(nil), data[len(data)-keep:]...)
 		}
 		if err != nil {
+			k.mu.Lock()
+			id := k.cur
+			k.mu.Unlock()
+			k.addRaw(id, name, carry)
+			k.flushRaw()
+			k.markSynced(name, int(^uint(0)>>1)) // no more output: never wait
 			return
 		}
+	}
+}
+
+// partialMarker is the length of the end of data that may be the start
+// of a sync marker continued by the next read.
+func partialMarker(data []byte) int {
+	tag := []byte(syncTag)
+	if i := bytes.LastIndex(data, tag); i >= 0 && len(data)-i <= len(syncTag)+20 {
+		return len(data) - i // the id and the closing byte are still to come
+	}
+	for n := min(len(tag)-1, len(data)); n > 0; n-- {
+		if bytes.HasPrefix(tag, data[len(data)-n:]) {
+			return n
+		}
+	}
+	return 0
+}
+
+func (k *Kernel) markSynced(name string, id int) {
+	k.syncMu.Lock()
+	if id > k.synced[name] {
+		k.synced[name] = id
+	}
+	k.syncMu.Unlock()
+	select {
+	case k.syncCh <- struct{}{}:
+	default:
+	}
+}
+
+// waitSync waits (briefly) until fd 1 and 2 are synced up to request id.
+func (k *Kernel) waitSync(id int) {
+	deadline := time.After(500 * time.Millisecond)
+	for {
+		k.syncMu.Lock()
+		ok := k.synced["stdout"] >= id && k.synced["stderr"] >= id
+		k.syncMu.Unlock()
+		if ok {
+			return
+		}
+		select {
+		case <-k.syncCh:
+		case <-deadline:
+			return
+		}
+	}
+}
+
+// addRaw queues direct output; it is sent after rawDelay, when the batch
+// reaches rawMax, or before the next protocol event (print output,
+// results, "done"), so the order of outputs is kept.
+func (k *Kernel) addRaw(id int, name string, p []byte) {
+	if len(p) == 0 {
+		return
+	}
+	k.rawMu.Lock()
+	if n := len(k.raw); n > 0 && k.raw[n-1].id == id && k.raw[n-1].name == name {
+		k.raw[n-1].text = append(k.raw[n-1].text, p...)
+	} else {
+		k.raw = append(k.raw, rawChunk{id: id, name: name, text: append([]byte(nil), p...)})
+	}
+	k.rawSize += len(p)
+	full := k.rawSize >= rawMax
+	if !full && k.rawTimer == nil {
+		k.rawTimer = time.AfterFunc(rawDelay, k.flushRaw)
+	}
+	k.rawMu.Unlock()
+	if full {
+		k.flushRaw()
+	}
+}
+
+// flushRaw sends the queued direct output, in order (the lock is held
+// while sending so concurrent flushes cannot reorder chunks).
+func (k *Kernel) flushRaw() {
+	k.rawMu.Lock()
+	defer k.rawMu.Unlock()
+	if k.rawTimer != nil {
+		k.rawTimer.Stop()
+		k.rawTimer = nil
+	}
+	chunks := k.raw
+	k.raw, k.rawSize = nil, 0
+	for _, c := range chunks {
+		k.onEv(Event{ID: c.id, Type: "stream", Name: c.name, Text: string(c.text)})
 	}
 }
 
@@ -260,5 +418,12 @@ func (k *Kernel) Close() {
 	k.stdin.Close()
 	if p := k.cmd.Process; p != nil {
 		syscall.Kill(-p.Pid, syscall.SIGKILL)
+	}
+	// a running `!command` has its own process group
+	k.mu.Lock()
+	child := k.child
+	k.mu.Unlock()
+	if child > 0 {
+		syscall.Kill(-child, syscall.SIGKILL)
 	}
 }

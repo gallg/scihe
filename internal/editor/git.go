@@ -436,6 +436,39 @@ func (e *Editor) closeSpecial(w *Window, b *buffer.Buffer) {
 	}
 }
 
+// closeReadOnly closes a read-only special buffer shown in w: the
+// markdown preview is turned off, other buffers lose their window (or
+// give way to the alternate buffer). Logs are kept alive for the REPL or
+// job still writing into them.
+func (e *Editor) closeReadOnly(w *Window, b *buffer.Buffer) {
+	for src, p := range e.previews {
+		if p.buf == b {
+			e.closePreview(src)
+			return
+		}
+	}
+	if e.closeWindow(w) {
+		return
+	}
+	if w.alt != nil && w.alt != b && e.bufferAlive(w.alt) {
+		e.setBuffer(w, w.alt)
+		return
+	}
+	if b.Kind != buffer.KindRepl {
+		e.deleteBuffer(b, true)
+		return
+	}
+	for _, x := range e.listedBuffers() {
+		if x != b && x.Kind != buffer.KindPreview && x.Kind != buffer.KindRepl {
+			e.setBuffer(w, x)
+			return
+		}
+	}
+	nb := buffer.New("[No Name]")
+	e.addBuffer(nb)
+	e.setBuffer(w, nb)
+}
+
 // openPath shows the file in w (names with spaces need no escaping).
 func (e *Editor) openPath(w *Window, path string) {
 	b, err := e.loadBuffer(path)
@@ -489,6 +522,7 @@ func (e *Editor) reloadAllUnmodified() {
 func (e *Editor) gitReadOnly(name, text, filetype string) *buffer.Buffer {
 	b := e.scratch("*"+name+"*", buffer.KindScratch)
 	b.SetText(strings.TrimSuffix(text, "\n"))
+	b.ReadOnly = true
 	b.Filetype = filetype
 	e.showBuffer(b)
 	e.setCursor(e.win, Pos{})

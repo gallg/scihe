@@ -25,6 +25,7 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space f S` | Save all |
 | `Space f R` | Rename (save as) |
 | `Space f y` | Reload from disk |
+| `Space f Y` | Reload from disk, discarding changes |
 
 ## Buffer (`Space b`)
 
@@ -35,6 +36,8 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space b p` | Previous buffer |
 | `Space b d` | Delete buffer |
 | `Space b D` | Delete buffer, discarding changes |
+| `Space b a` | Delete all buffers (keeps modified ones) |
+| `Space b A` | Delete all buffers, discarding changes |
 | `Space b s` | Scratch buffer |
 | `Space b l` | [Buffer list](file-explorer.md#buffer-list) |
 

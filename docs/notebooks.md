@@ -8,8 +8,9 @@ built-in driver. Only Python notebooks are supported.
 
 - Cells are drawn as boxes: `In [n]` for code, `Markdown`, `Raw`.
 - Code cells show their output in an `Out [n]` box below.
-- Figures are saved in the notebook and shown as a placeholder.
-  `:nbimage` opens them.
+- The terminal shows text only. Figures are saved in the notebook and
+  shown as a placeholder; `:nbimage` opens them. LaTeX, HTML and math
+  in markdown cells are shown as their source.
 - While you type in a cell, its raw text is shown, with markers like
   `# %% [code]`.
 
@@ -35,6 +36,21 @@ built-in driver. Only Python notebooks are supported.
 
 A cell that stops being code loses its outputs. The full list of
 notebook keys is in the [keymap](keymap.md#notebook-space-n).
+
+## Shell commands
+
+A line starting with `!` runs in the shell, like in Jupyter:
+
+```python
+!ls data
+!python3 -c "print('hello')" arg1 arg2
+```
+
+Its output, stderr included, appears in the cell. `Space n i` stops
+it. The command reads no input. A trailing `\` continues the command
+on the next line. A background job (`!cmd &`) keeps running, but its
+later output isn't shown. `:nbexport` writes these lines as comments
+(`# !ls`).
 
 ## Notebooks and `.py` files
 

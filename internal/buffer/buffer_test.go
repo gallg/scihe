@@ -84,6 +84,8 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 		"crlf.txt":  "one\r\ntwo\r\n",
 		"noeol.txt": "one\ntwo",
 		"empty.txt": "",
+		"blank.txt": "\n",
+		"mixed.txt": "one\r\ntwo\nthree\r\n",
 	}
 	for name, content := range cases {
 		p := filepath.Join(dir, name)
@@ -96,12 +98,8 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 			t.Fatal(err)
 		}
 		got, _ := os.ReadFile(p)
-		want := content
-		if content == "" {
-			want = "\n"
-		}
-		if string(got) != want {
-			t.Errorf("%s: got %q want %q", name, got, want)
+		if string(got) != content {
+			t.Errorf("%s: got %q want %q", name, got, content)
 		}
 		if st, _ := os.Stat(p); st.Mode().Perm() != 0o600 {
 			t.Errorf("%s: permissions not preserved: %v", name, st.Mode())
@@ -110,5 +108,25 @@ func TestLoadSaveRoundTrip(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "bin"), []byte{0xff, 0xfe, 0x00}, 0o644)
 	if _, err := Load(filepath.Join(dir, "bin")); err == nil {
 		t.Fatal("expected error for binary file")
+	}
+}
+
+// a new (or emptied) buffer writes an empty file, like vim
+func TestSaveEmptyBuffer(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "new.txt")
+	b, err := Load(p) // does not exist yet
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Save(""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(p); string(got) != "" {
+		t.Fatalf("empty buffer wrote %q", got)
+	}
+	b.Insert(Pos{}, "x")
+	b.Save("")
+	if got, _ := os.ReadFile(p); string(got) != "x\n" {
+		t.Fatalf("typed text wrote %q", got)
 	}
 }

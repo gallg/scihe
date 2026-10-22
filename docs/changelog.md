@@ -1,0 +1,58 @@
+# Changelog
+
+All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
+`scihe -version` prints the installed one.
+
+## 0.1.1 — 2026-10-22
+
+### Added
+- `Space f Y` (`:e!`): reload from disk, discarding changes.
+- `:bdall` / `:bdall!` (`Space b a` / `Space b A`): delete all buffers.
+  Without `!`, modified buffers and tables with staged edits are kept.
+  Logs that a running job or REPL still writes to are always kept.
+- Notebooks: lines starting with `!` run in the shell, like in Jupyter.
+  An interrupt stops the command and nothing else the kernel started.
+  `:nbexport` writes them as comments.
+- `q` closes read-only buffers: help, messages, statistics, command
+  output, REPL and `*run*` logs, git diff/log/blame, the buffer list
+  and the markdown preview.
+- This changelog.
+
+### Changed
+- `:run ARGS` honours quotes: `:run -c "print(1)"` passes two arguments.
+- Output that child processes of a notebook kernel write directly is
+  batched: a program printing 20,000 lines no longer sends one event per
+  line. Output written while the cell runs now arrives before the cell
+  finishes, in order with `print` output; before, the end of it could be
+  lost.
+- The example notebook and the notebook docs say plainly that images
+  are placeholders and that LaTeX, HTML and math are shown as source.
+- The docs explain that the font is set in the terminal, not in Scihe.
+
+### Fixed
+- Output buffers (`*help*`, `*messages*`, `*stats*`, `*shell*`, git
+  diff/blame, `*run*`, …) could be edited by accident; they are
+  read-only now. Writing one to a file (`:w FILE`) makes it an ordinary,
+  editable file.
+- Key labels longer than 32 characters were cut off in the `Space`
+  popup (e.g. `Space f Y`); all labels now fit, and a test keeps them so.
+- `:bd` without `!` deleted a table view (or its source) with staged
+  edits without asking; it now refuses, like for a modified file.
+- `:q` / `:qa` quit with staged table edits; they now refuse (`!`
+  overrides).
+- Deleting a markdown buffer left its preview window behind, with stale
+  text; the preview now goes with it.
+- `:g/pat/j` joined all matching lines into one; it now joins them in
+  pairs, like vim.
+- `:put 0` … `:put 9` put the unnamed register instead of registers 0–9.
+- An nREPL server that stopped reading froze the editor on evaluation,
+  and `:repl quit` hung too. Requests are now written in the background.
+- Saving an empty file wrote a newline into it. A file with mixed line
+  endings was saved with all CRLF; its line endings are now kept as
+  they are (a lone `\r` shows as `^M`).
+
+## 0.1.0 — 2026-10-21
+
+First release: vim-style modal editing, fuzzy pickers, syntax
+highlighting and themes, REPLs, Jupyter notebooks, the CSV/TSV data
+viewer, markdown preview, git, the file explorer and auto-reload.

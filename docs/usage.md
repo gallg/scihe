@@ -111,6 +111,12 @@ Press `Space` and wait, or wait after a prefix such as `g`, `z` or
 | A `.csv` or `.tsv` file | The [data viewer](data-viewer.md) |
 | An `.ipynb` file | A [notebook](notebooks.md) |
 
-`Space f y` (or `:e`) reloads the current file from disk. Changes made
-by other programs are detected, see
-[Auto-reload](configuration.md#auto-reload).
+`Space f y` (or `:e`) reloads the current file from disk; `Space f Y`
+(or `:e!`) also discards your changes. Changes made by other programs
+are detected, see [Auto-reload](configuration.md#auto-reload).
+
+## Read-only buffers
+
+Help, messages, statistics, command output, REPL logs, git diffs, the
+buffer list and the markdown preview can't be edited. Press `q` to
+close them.

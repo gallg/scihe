@@ -62,6 +62,9 @@ autoreload = false
 Choosing a theme (`Space t t`) or toggling transparency (`Space t T`)
 updates the file and keeps your comments.
 
+There is no font setting: the terminal draws the text, so the font and
+its size are set in your terminal emulator.
+
 ## Options
 
 | Option | Description |

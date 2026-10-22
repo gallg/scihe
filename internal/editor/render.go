@@ -729,6 +729,10 @@ func (e *Editor) drawCmdline(sw, sh int) {
 	}
 }
 
+// maxKeyLabel is the widest key label the which-key popup shows; labels
+// are kept within it (TestKeyLabelsFitPopup) so none is cut off.
+const maxKeyLabel = 32
+
 func (e *Editor) drawWhichKey(sw, sh int) {
 	node := e.whichKeyNode()
 	if node == nil {
@@ -746,7 +750,7 @@ func (e *Editor) drawWhichKey(sw, sh int) {
 		keyW = max(keyW, runewidth.StringWidth(keymap.Format([]keymap.Key{en.Key})))
 		labW = max(labW, runewidth.StringWidth(en.Label))
 	}
-	labW = min(labW, 32)
+	labW = min(labW, maxKeyLabel)
 	colW := keyW + 3 + labW + 3
 	cols := max(1, (sw-2)/colW)
 	rows := (len(ents) + cols - 1) / cols

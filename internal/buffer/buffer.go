@@ -57,6 +57,9 @@ type Buffer struct {
 	ReadOnly bool
 	CRLF     bool
 	NoEOL    bool // file did not end with a newline
+	// BlankLine: the file was one empty line ("\n"), which reads as the
+	// same empty text as an empty file but is written back as "\n"
+	BlankLine bool
 
 	lines [][]rune
 
@@ -137,10 +140,13 @@ func Load(path string) (*Buffer, error) {
 		return nil, fmt.Errorf("%s: %w", path, ErrBinary)
 	}
 	s := string(data)
-	if strings.Contains(s, "\r\n") {
+	// CRLF only when every line ends so; with mixed endings the \r stay
+	// in the text (shown as ^M) and the file is written back unchanged
+	if n := strings.Count(s, "\r\n"); n > 0 && n == strings.Count(s, "\n") {
 		b.CRLF = true
 		s = strings.ReplaceAll(s, "\r\n", "\n")
 	}
+	b.BlankLine = s == "\n"
 	if s != "" && !strings.HasSuffix(s, "\n") {
 		b.NoEOL = true
 	}
@@ -319,7 +325,15 @@ func (b *Buffer) FileText() string { return b.fileText() }
 
 func (b *Buffer) fileText() string {
 	s := b.Text()
-	if !b.NoEOL || s == "" {
+	switch {
+	case s == "":
+		// no text writes an empty file (like vim), unless the file was
+		// one empty line
+		if !b.BlankLine {
+			return ""
+		}
+		s = "\n"
+	case !b.NoEOL:
 		s += "\n"
 	}
 	if b.CRLF {

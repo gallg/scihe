@@ -900,9 +900,9 @@ func (e *Editor) tableKeys() (normal, visual *keymap.Map[*Cmd]) {
 	}
 	bind("s", "sort ascending", sortBy(false, false))
 	bind("S", "sort descending", sortBy(true, false))
-	bind("gs", "add column to the sort (ascending)", sortBy(false, true))
-	bind("gS", "add column to the sort (descending)", sortBy(true, true))
-	bind("o", "original order / (edit) add row below", func(c *ctx, tv *tableView) {
+	bind("gs", "add to sort ascending", sortBy(false, true))
+	bind("gS", "add to sort descending", sortBy(true, true))
+	bind("o", "unsort / (edit) add row below", func(c *ctx, tv *tableView) {
 		if tv.editing {
 			e.tableAddRow(c.w, tv, true)
 			return

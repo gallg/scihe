@@ -35,6 +35,8 @@ or offsets like `.,+5`. A `!` after a command forces it.
 | `:b NAME` | Go to a buffer |
 | `:bn`, `:bp` | Next, previous buffer |
 | `:bd[elete]` | Delete the buffer |
+| `:bda[ll]` | Delete all buffers (keeps modified ones) |
+| `:bda[ll]!` | Delete all buffers, discarding changes |
 | `:ls` | [Buffer list](file-explorer.md#buffer-list) |
 
 ## Editing
@@ -105,7 +107,8 @@ See [Configuration](configuration.md).
 | Go | `go run` |
 | Other | The file as a script |
 
-Output goes to the `*run*` buffer. See [REPLs](repls.md).
+Output goes to the `*run*` buffer. Quotes group words in ARGS:
+`:run --name "Ada Lovelace"` passes two arguments. See [REPLs](repls.md).
 
 ## Notebooks
 

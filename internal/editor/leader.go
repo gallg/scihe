@@ -50,6 +50,7 @@ func (e *Editor) setupLeader() {
 		})
 	})
 	ex("<leader>fy", "reload from disk", "e")
+	ex("<leader>fY", "reload (discard changes)", "e!")
 
 	group("<leader>b", "buffer")
 	n("<leader>bb", "switch buffer", func(c *ctx) { c.e.pickBuffer() })
@@ -57,7 +58,9 @@ func (e *Editor) setupLeader() {
 	ex("<leader>bp", "previous buffer", "bp")
 	ex("<leader>bd", "delete buffer", "bd")
 	ex("<leader>bD", "delete buffer (force)", "bd!")
-	ex("<leader>bl", "buffer list (dired: mark, close, rename, copy)", "ls")
+	ex("<leader>ba", "delete all buffers", "bdall")
+	ex("<leader>bA", "delete all buffers (force)", "bdall!")
+	ex("<leader>bl", "buffer list (dired)", "ls")
 	n("<leader>bs", "scratch buffer", func(c *ctx) { c.e.execEx("enew") })
 
 	group("<leader>w", "window")
@@ -176,11 +179,11 @@ func (e *Editor) setupLeader() {
 	} {
 		k := k
 		n("<leader>d"+k.key, k.label, func(c *ctx) { c.e.execEx(k.cmd) })
-		v("<leader>d"+k.key, k.label+" of selection", func(c *ctx) { c.e.execEx(k.cmd) })
+		v("<leader>d"+k.key, k.label, func(c *ctx) { c.e.execEx(k.cmd) })
 	}
 	n("<leader>dw", "filter rows (:where)", func(c *ctx) { c.e.startCmdline(':', "where ") })
 	n("<leader>dr", "correlation matrix", func(c *ctx) { c.e.execEx("corr") })
-	v("<leader>dr", "correlation matrix of selection", func(c *ctx) { c.e.execEx("corr") })
+	v("<leader>dr", "correlation matrix", func(c *ctx) { c.e.execEx("corr") })
 	n("<leader>df", "frequency table", func(c *ctx) { c.e.execEx("freq") })
 	n("<leader>dg", "group by (:groupby)", func(c *ctx) { c.e.startCmdline(':', "groupby ") })
 	n("<leader>dC", "computed column (:compute)", func(c *ctx) { c.e.startCmdline(':', "compute ") })
@@ -197,7 +200,7 @@ func (e *Editor) setupLeader() {
 	ex("<leader>ti", "ignore case", "set ignorecase!")
 	ex("<leader>te", "expand tab", "set expandtab!")
 	ex("<leader>tw", "line wrap (this buffer)", "set wrap!")
-	ex("<leader>ta", "auto-reload from disk (this buffer)", "set autoreload!")
+	ex("<leader>ta", "auto-reload (this buffer)", "set autoreload!")
 	n("<leader>tt", "theme", func(c *ctx) { c.e.pickTheme() })
 	ex("<leader>tT", "transparent background", "set transparent!")
 	n("<leader>tl", "language", func(c *ctx) { c.e.pickFiletype() })
@@ -212,6 +215,13 @@ func (e *Editor) setupLeader() {
 	ex("<leader>qq", "quit all", "qa")
 	ex("<leader>qQ", "quit all (discard changes)", "qa!")
 	ex("<leader>qw", "write all and quit", "wqa")
+
+	// q closes read-only special buffers (help, logs, output, preview, …);
+	// a buffer's own keys (table view, git status) come first
+	e.readOnlyMap = keymap.NewMap[*Cmd]()
+	if _, mapped := e.cfg.Keys["normal"]["q"]; !mapped {
+		e.readOnlyMap.Bind(keymap.Parse("q", L), "close", action(func(c *ctx) { c.e.closeReadOnly(c.w, c.b) }))
+	}
 
 	// visual gc/gq/> etc. come from operators; add a few visual leader actions
 	v("<leader>sg", "grep selection", func(c *ctx) {

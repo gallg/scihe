@@ -46,7 +46,7 @@ func exRun(e *Editor, a *exArgs) error {
 			return err
 		}
 	}
-	args := strings.Fields(a.arg)
+	args := splitArgs(a.arg) // quotes group words: -c "print(1)"
 	var cmd *exec.Cmd
 	switch b.Filetype {
 	case "python":
@@ -85,6 +85,7 @@ func exRun(e *Editor, a *exArgs) error {
 func (e *Editor) runAsync(cmd *exec.Cmd, bufName string, done func(error)) {
 	out := e.scratch(bufName, buffer.KindRepl)
 	out.SetText("$ " + strings.Join(cmd.Args, " ") + "\n")
+	out.ReadOnly = true
 	e.showLog(out)
 	w := &logWriter{e: e, b: out}
 	cmd.Stdout, cmd.Stderr = w, w
