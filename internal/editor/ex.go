@@ -618,7 +618,16 @@ func exEdit(e *Editor, a *exArgs) error {
 // reload re-reads a buffer from disk.
 func (e *Editor) reload(b *buffer.Buffer) error {
 	if k := e.kernels[b.ID]; k != nil && k.nb != nil {
-		return e.reloadNotebook(b)
+		if err := e.reloadNotebook(b); err != nil {
+			return err
+		}
+		e.forWindows(func(w *Window) {
+			if w.buf == b {
+				w.cur = b.Clamp(w.cur)
+			}
+		})
+		e.infof("%q reloaded", b.Name)
+		return nil
 	}
 	nb, err := buffer.Load(b.Path)
 	if err != nil {
@@ -1484,13 +1493,14 @@ func exRedo(e *Editor, a *exArgs) error {
 func optionNames() []string {
 	return []string{"number", "relativenumber", "cursorline", "tabstop", "shiftwidth", "expandtab",
 		"scrolloff", "ignorecase", "smartcase", "hlsearch", "incsearch", "autoindent", "filetype", "transparent",
-		"wrap", "linebreak", "autoreload"}
+		"wrap", "linebreak", "autoreload", "colorbrackets"}
 }
 
 var optAbbrev = map[string]string{
 	"nu": "number", "rnu": "relativenumber", "cul": "cursorline", "ts": "tabstop", "sw": "shiftwidth",
 	"et": "expandtab", "so": "scrolloff", "ic": "ignorecase", "scs": "smartcase", "hls": "hlsearch",
 	"is": "incsearch", "ai": "autoindent", "ft": "filetype", "lbr": "linebreak", "ar": "autoreload", "autoread": "autoreload",
+	"cb": "colorbrackets",
 }
 
 func exSet(e *Editor, a *exArgs) error {
@@ -1581,10 +1591,25 @@ func (e *Editor) setOption(item string) error {
 	case "linebreak":
 		setBool(&o.LineBreak, nil)
 	case "autoreload": // buffer-local; the config sets the default
+		// turning it off (noautoreload, a toggle of a set flag) is always fine
+		turnsOn := !neg
+		if toggle {
+			turnsOn = !o.Autoreload
+		}
+		if msg := e.autoreloadUnsupported(b); msg != "" && !query && turnsOn {
+			return errors.New(msg)
+		}
+		target := b
 		if tv := e.tableFor(b); tv != nil {
+			target = tv.src
 			o = e.options(tv.src) // a table view reloads through its file buffer
 		}
 		setBool(&o.Autoreload, nil)
+		if !query && o.Autoreload && target.Path == "" {
+			e.infof("auto-reload on: works once saved to a file")
+		}
+	case "colorbrackets": // buffer-local; the config sets the default
+		setBool(&o.ColorBrackets, nil)
 	case "ignorecase":
 		setBool(&g.IgnoreCase, nil)
 	case "smartcase":

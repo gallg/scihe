@@ -8,12 +8,12 @@ import (
 	"scihe/internal/buffer"
 )
 
-// Auto-reload: about once a second the files of open buffers are
-// compared with the time they were last read or written. A buffer with
-// 'autoreload' (off by default), or a markdown buffer while its preview
-// is open, is reloaded when it has no unsaved changes;
-// otherwise the change is reported once per new version of the file and
-// the buffer is left alone. Notebooks are never reloaded automatically.
+// Auto-reload: about once a second the files of open buffers (files and
+// notebooks) are compared with the time they were last read or written.
+// A buffer with 'autoreload' (off by default), or a markdown buffer while
+// its preview is open, is reloaded when it has no unsaved changes (and,
+// for a notebook, no cell running or queued); otherwise the change is
+// reported once per new version of the file and the buffer is left alone.
 
 const diskCheckEvery = time.Second
 
@@ -31,8 +31,8 @@ func (e *Editor) checkDisk() bool {
 	e.lastDiskCheck = time.Now()
 	changed := false
 	for _, b := range e.buffers {
-		if b.Kind != buffer.KindFile || b.Path == "" {
-			continue // notebooks, listings, logs, previews
+		if b.Kind != buffer.KindFile && b.Kind != buffer.KindNotebook || b.Path == "" {
+			continue // listings, logs, previews
 		}
 		known, ok := e.modTimes[b.ID]
 		if !ok {
@@ -62,6 +62,10 @@ func (e *Editor) checkDisk() bool {
 		// never under an edit in progress: insert / visual mode or an
 		// open undo group; the next check retries
 		if b == e.win.buf && e.mode != ModeNormal || b.InUndoGroup() {
+			continue
+		}
+		// nor while notebook cells run: their outputs go to the old cells
+		if ks := e.kernels[b.ID]; ks != nil && (ks.running != nil || ks.starting || len(ks.queue) > 0) {
 			continue
 		}
 		switch {
@@ -94,4 +98,36 @@ func (e *Editor) previewShown(b *buffer.Buffer) bool {
 	shown := false
 	e.forWindows(func(w *Window) { shown = shown || w.buf == p.buf })
 	return shown
+}
+
+// autoreloadUnsupported says why 'autoreload' can't work in b ("" when
+// it can). Messages stay short to fit the message line.
+func (e *Editor) autoreloadUnsupported(b *buffer.Buffer) string {
+	for _, p := range e.previews {
+		if p.buf == b {
+			return "auto-reload: the preview follows its file"
+		}
+	}
+	if tv := e.tableFor(b); tv != nil {
+		if tv.src.Kind == buffer.KindFile {
+			return "" // set on its file buffer
+		}
+		return "auto-reload: not available in this table"
+	}
+	what := ""
+	switch {
+	case b.Kind == buffer.KindFile || b.Kind == buffer.KindNotebook:
+		return ""
+	case e.gitViews[b.ID] != nil || b.Data["git"] == true:
+		what = "git buffers"
+	case e.direds[b.ID] != nil:
+		what = "the file explorer"
+	case e.buflists[b.ID] != nil:
+		what = "the buffer list"
+	case b.Kind == buffer.KindRepl:
+		what = "logs"
+	default:
+		what = "output buffers"
+	}
+	return "auto-reload: not available in " + what
 }

@@ -186,6 +186,7 @@ func (e *Editor) reloadNotebook(b *buffer.Buffer) error {
 		return err
 	}
 	ks.nb = nb
+	ks.dispCache = nil // outputs come from the file now
 	b.SetText(nb.ToText())
 	b.MarkSaved()
 	delete(b.Data, "outputsDirty")

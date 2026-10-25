@@ -40,6 +40,10 @@ type Theme struct {
 	CellHeader     tcell.Style
 	MatchParen     tcell.Style
 	NonText        tcell.Style
+	// Brackets colours brackets by nesting depth (colorbrackets);
+	// BracketError marks a closing bracket without an opening one.
+	Brackets     []tcell.Color
+	BracketError tcell.Color
 
 	bg, fg tcell.Color
 	style  *chroma.Style
@@ -146,7 +150,44 @@ func LoadTheme(name string, transparent bool) *Theme {
 	t.CellHeader = base.Background(blend(t.bg, accent, 0.18)).Foreground(accent).Bold(true)
 	t.MatchParen = base.Background(blend(t.bg, contrast, 0.25)).Bold(true)
 	t.NonText = base.Foreground(blend(t.fg, t.bg, 0.7))
+	t.Brackets = t.bracketColors(dark, errc)
+	t.BracketError = errc
 	return t
+}
+
+// bracketColors picks distinct colours of the theme for the nesting
+// levels, topped up with a fixed rainbow when the theme has few.
+// The error colour is left out: it marks unmatched brackets.
+func (t *Theme) bracketColors(dark bool, errc tcell.Color) []tcell.Color {
+	const n = 6
+	var out []tcell.Color
+	add := func(c tcell.Color) {
+		if c == tcell.ColorDefault || c == t.fg || c == t.bg || c == errc || len(out) == n {
+			return
+		}
+		for _, o := range out {
+			if o == c {
+				return
+			}
+		}
+		out = append(out, c)
+	}
+	for _, tt := range []chroma.TokenType{chroma.Keyword, chroma.NameFunction, chroma.LiteralString,
+		chroma.LiteralNumber, chroma.NameBuiltin, chroma.KeywordType, chroma.NameClass, chroma.NameTag} {
+		add(t.colorOf(tt, tcell.ColorDefault))
+	}
+	rainbow := []tcell.Color{tcell.NewRGBColor(255, 215, 0), tcell.NewRGBColor(218, 112, 214),
+		tcell.NewRGBColor(23, 159, 255), tcell.NewRGBColor(80, 200, 120), tcell.NewRGBColor(255, 140, 0),
+		tcell.NewRGBColor(0, 200, 200)}
+	if !dark {
+		rainbow = []tcell.Color{tcell.NewRGBColor(175, 135, 0), tcell.NewRGBColor(150, 50, 150),
+			tcell.NewRGBColor(0, 95, 215), tcell.NewRGBColor(0, 135, 60), tcell.NewRGBColor(200, 90, 0),
+			tcell.NewRGBColor(0, 130, 130)}
+	}
+	for _, c := range rainbow {
+		add(c)
+	}
+	return out
 }
 
 // Background returns the text background colour (tcell.ColorDefault when

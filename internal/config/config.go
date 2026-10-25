@@ -39,16 +39,19 @@ type Options struct {
 	// has no unsaved changes); off by default (a markdown buffer with an
 	// open preview reloads anyway)
 	Autoreload bool `toml:"autoreload"`
+	// ColorBrackets colours brackets by nesting depth (off by default)
+	ColorBrackets bool `toml:"colorbrackets"`
 }
 
 // FiletypeOptions override Options for one filetype; nil means inherit.
 type FiletypeOptions struct {
-	TabStop    *int  `toml:"tabstop"`
-	ShiftWidth *int  `toml:"shiftwidth"`
-	ExpandTab  *bool `toml:"expandtab"`
-	Wrap       *bool `toml:"wrap"`
-	LineBreak  *bool `toml:"linebreak"`
-	Autoreload *bool `toml:"autoreload"`
+	TabStop       *int  `toml:"tabstop"`
+	ShiftWidth    *int  `toml:"shiftwidth"`
+	ExpandTab     *bool `toml:"expandtab"`
+	Wrap          *bool `toml:"wrap"`
+	LineBreak     *bool `toml:"linebreak"`
+	Autoreload    *bool `toml:"autoreload"`
+	ColorBrackets *bool `toml:"colorbrackets"`
 }
 
 // Config is the whole configuration file.
@@ -358,6 +361,9 @@ func Load(path string) (*Config, error) {
 		if v.Autoreload != nil {
 			d.Autoreload = v.Autoreload
 		}
+		if v.ColorBrackets != nil {
+			d.ColorBrackets = v.ColorBrackets
+		}
 		defFT[k] = d
 	}
 	c.Filetypes = defFT
@@ -404,6 +410,9 @@ func (c *Config) ForFiletype(ft string) Options {
 		}
 		if f.Autoreload != nil {
 			o.Autoreload = *f.Autoreload
+		}
+		if f.ColorBrackets != nil {
+			o.ColorBrackets = *f.ColorBrackets
 		}
 	}
 	return o

@@ -480,7 +480,11 @@ var pairs = map[rune]rune{'(': ')', '[': ']', '{': '}', ')': '(', ']': '[', '}':
 func isOpenBr(r rune) bool { return r == '(' || r == '[' || r == '{' }
 
 // matchBracket finds the bracket matching the one at p.
-func matchBracket(b *buffer.Buffer, p Pos) (Pos, bool) {
+func matchBracket(b *buffer.Buffer, p Pos) (Pos, bool) { return matchBracketWithin(b, p, -1) }
+
+// matchBracketWithin is matchBracket looking at most maxLines lines away
+// from p (all of them when maxLines < 0).
+func matchBracketWithin(b *buffer.Buffer, p Pos, maxLines int) (Pos, bool) {
 	r := b.RuneAt(p)
 	m, ok := pairs[r]
 	if !ok {
@@ -489,6 +493,9 @@ func matchBracket(b *buffer.Buffer, p Pos) (Pos, bool) {
 	depth := 0
 	if isOpenBr(r) {
 		for q, ok := p, true; ok; q, ok = b.Next(q) {
+			if maxLines >= 0 && q.Line-p.Line > maxLines {
+				break
+			}
 			switch b.RuneAt(q) {
 			case r:
 				depth++
@@ -501,6 +508,9 @@ func matchBracket(b *buffer.Buffer, p Pos) (Pos, bool) {
 		}
 	} else {
 		for q, ok := p, true; ok; q, ok = b.Prev(q) {
+			if maxLines >= 0 && p.Line-q.Line > maxLines {
+				break
+			}
 			switch b.RuneAt(q) {
 			case r:
 				depth++

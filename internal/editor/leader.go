@@ -201,6 +201,7 @@ func (e *Editor) setupLeader() {
 	ex("<leader>te", "expand tab", "set expandtab!")
 	ex("<leader>tw", "line wrap (this buffer)", "set wrap!")
 	ex("<leader>ta", "auto-reload (this buffer)", "set autoreload!")
+	ex("<leader>tp", "colored brackets (this buffer)", "set colorbrackets!")
 	n("<leader>tt", "theme", func(c *ctx) { c.e.pickTheme() })
 	ex("<leader>tT", "transparent background", "set transparent!")
 	n("<leader>tl", "language", func(c *ctx) { c.e.pickFiletype() })

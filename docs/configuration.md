@@ -44,6 +44,7 @@ autoindent = true
 wrap = false
 linebreak = true
 autoreload = false
+colorbrackets = false
 ```
 
 ## Top-level keys
@@ -86,15 +87,17 @@ its size are set in your terminal emulator.
 | `wrap` | Soft-wrap long lines |
 | `linebreak` | When wrapping, break at blanks, not mid-word |
 | `autoreload` | Reload files changed on disk |
+| `colorbrackets` | Color brackets by nesting depth (`Space t p`); an unmatched closing one shows in the error color. Strings and comments are skipped |
 
 `:set` changes an option during the session, as in vim. `wrap`,
-`linebreak` and `autoreload` are per buffer: `:set wrap!` changes only
-the current buffer.
+`linebreak`, `autoreload` and `colorbrackets` are per buffer: `:set
+wrap!` changes only the current buffer.
 
 ## Per-filetype options
 
 A `[filetype.NAME]` table overrides `tabstop`, `shiftwidth`,
-`expandtab`, `wrap`, `linebreak` and `autoreload` for one language.
+`expandtab`, `wrap`, `linebreak`, `autoreload` and `colorbrackets` for
+one language.
 `:languages` lists the names.
 
 ```toml
@@ -112,7 +115,8 @@ Built-in filetype defaults:
 
 ## Auto-reload
 
-Scihe checks the files of open buffers about once a second.
+Scihe checks the files of open buffers and notebooks about once a
+second.
 
 | Situation | What happens |
 |-----------|--------------|
@@ -121,10 +125,12 @@ Scihe checks the files of open buffers about once a second.
 | Markdown with its preview open | The buffer reloads |
 | Unsaved changes | Never reloaded; a warning is shown |
 | File deleted | A message; `:w` writes it again |
-| Notebooks | Never reloaded |
+| Notebook with a cell running | Reloads when the cells finish |
 
 Each change is reported once. `Space t a` toggles auto-reload for the
-current buffer.
+current buffer. A table view sets it on its file. Buffers without a
+file (git, explorer, buffer list, output, logs, the preview) say that
+auto-reload is not available there. A new buffer gets it once saved.
 
 ## Key remapping
 

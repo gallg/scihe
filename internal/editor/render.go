@@ -292,10 +292,14 @@ func (e *Editor) drawWindow(w *Window) {
 	sel := e.selectionFor(w)
 	active := w == e.win
 	w.curX, w.curY = -1, -1
+	// the bracket pair at the cursor (normal and insert mode); in insert
+	// mode the cursor is a bar, so the bracket it touches is marked too
 	matchPos, hasMatch := Pos{}, false
-	if active && e.mode != ModeInsert {
-		if _, ok := pairs[b.RuneAt(w.cur)]; ok {
-			matchPos, hasMatch = matchBracket(b, w.cur)
+	brPos, markBr := Pos{}, false
+	if active {
+		if p, ok := e.cursorBracket(b, w.cur); ok {
+			matchPos, hasMatch = matchBracketWithin(b, p, matchParenLines)
+			brPos, markBr = p, hasMatch && e.mode != ModeNormal
 		}
 	}
 	notify := func() { e.Post(func() {}) }
@@ -366,9 +370,15 @@ func (e *Editor) drawWindow(w *Window) {
 			styles[i] = base
 		}
 		for _, sp := range spans {
+			if sp.Literal && sp.Style == th.Default {
+				continue // only marks a string/comment for colorbrackets
+			}
 			for i := max(sp.Start, 0); i < sp.End && i < len(line); i++ {
 				styles[i] = mergeStyle(base, sp.Style)
 			}
+		}
+		if static == nil && e.options(b).ColorBrackets {
+			e.colorBrackets(b, hl, l, spans, styles, notify)
 		}
 		for _, m := range e.matchesInLine(string(line)) {
 			for i := m[0]; i < m[1] && i < len(line); i++ {
@@ -409,6 +419,9 @@ func (e *Editor) drawWindow(w *Window) {
 		}
 		if hasMatch && matchPos.Line == l && matchPos.Col < len(styles) {
 			styles[matchPos.Col] = withBg(styles[matchPos.Col], th.MatchParen).Bold(true)
+		}
+		if markBr && brPos.Line == l && brPos.Col < len(styles) {
+			styles[brPos.Col] = withBg(styles[brPos.Col], th.MatchParen).Bold(true)
 		}
 		// draw the line on one row, or on several when wrapping
 		segs := e.segments(w, l)

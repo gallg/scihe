@@ -83,6 +83,7 @@ type Editor struct {
 	localMaps    map[int]*keymap.Map[*Cmd] // per-buffer normal-mode keys
 	localVisual  map[int]*keymap.Map[*Cmd] // per-buffer visual-mode keys
 	readOnlyMap  *keymap.Map[*Cmd]         // q closes read-only special buffers
+	brackets     map[int]*bracketDepths    // colorbrackets: depth per line
 	whichKey     bool
 	insertPend   []keymap.Key
 	replaying    int
@@ -183,6 +184,7 @@ func New(screen tcell.Screen, cfg *config.Config) *Editor {
 		modTimes:     map[int]time.Time{},
 		disk:         map[int]diskState{},
 		regs:         newRegisters(),
+		brackets:     map[int]*bracketDepths{},
 		cmdHist:      map[byte][]string{},
 		kernels:      map[int]*kernelState{},
 		sessions:     map[string]repl.Session{},
@@ -428,6 +430,7 @@ func (e *Editor) onChange(b *buffer.Buffer, line, removed, added int) {
 	if h := e.highlighters[b.ID]; h != nil {
 		h.Shift(line, removed, added)
 	}
+	e.invalidateBrackets(b, line)
 	if an := e.annots[b.ID]; len(an) > 0 {
 		delta := added - removed
 		moved := map[int]annotation{}
@@ -586,6 +589,7 @@ func (e *Editor) removeBuffer(b *buffer.Buffer) {
 		}
 	}
 	delete(e.highlighters, b.ID)
+	delete(e.brackets, b.ID)
 	delete(e.static, b.ID)
 	delete(e.decor, b.ID)
 	delete(e.annots, b.ID)

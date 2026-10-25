@@ -10,6 +10,25 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   `c`, `x`, visual `p`, `Space n d`, `:d`, …) no longer overwrite the
   text `p` pastes. Naming a register (`"ad`) still stores it. Vim's
   behaviour (`true`) stays the default.
+- Colored brackets: `Space t p` (`:set colorbrackets!`) colors brackets
+  by nesting depth; a closing bracket without an opening one shows in
+  the error color. Brackets in strings and comments are skipped, and
+  each notebook cell starts afresh. `colorbrackets = true` in `[options]`
+  or `[filetype.NAME]` turns it on by default. Typing stays as fast as
+  without it, also in large files.
+
+### Changed
+- Notebooks take part in auto-reload: a change on disk is reported, and
+  with `autoreload` on an unmodified notebook reloads (after any running
+  cells finish). Before, notebook changes on disk went unnoticed.
+- `Space t a` (`:set autoreload`) in a buffer that can't reload (git,
+  explorer, buffer list, output, logs, the markdown preview) now says
+  so instead of silently doing nothing. Turning it off is always
+  accepted.
+- The matching bracket is highlighted in insert mode too (the bracket
+  just typed, or under the cursor, and its pair), and no longer in
+  visual mode (it stays while typing a `:` command or a search). It looks at most 3000 lines away, so typing stays fast
+  in big files; `%` still searches the whole buffer.
 
 ### Fixed
 - Visual `p` in a read-only buffer (help, output, logs) changed nothing
@@ -27,6 +46,8 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   made the editor wait 5 s; `:repl quit` could cut off the `close`
   request sent to the server.
 - The buffer list misaligned its columns once buffer numbers passed 999.
+- Reloading a notebook (`Space f y`) kept showing the old outputs instead
+  of the ones in the file.
 - `:bdall` did not count a markdown preview deleted with its file.
 
 ## 0.1.1 — 2026-10-22

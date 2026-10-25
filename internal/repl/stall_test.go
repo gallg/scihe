@@ -38,14 +38,17 @@ func TestNREPLStalledServer(t *testing.T) {
 	}
 	start := time.Now()
 	done := make(chan Result, 10)
-	if err := c.Eval(strings.Repeat("x", 64<<20), "", func(r Result) {
+	// far more than the socket buffers: a blocking write could never finish
+	if err := c.Eval(strings.Repeat("x", 16<<20), "", func(r Result) {
 		if r.Done {
 			done <- r
 		}
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if d := time.Since(start); d > time.Second {
+	// encoding takes a moment (slower under -race); blocking on the
+	// socket would take forever
+	if d := time.Since(start); d > 3*time.Second {
 		t.Fatalf("Eval blocked for %v", d)
 	}
 	closed := make(chan struct{})

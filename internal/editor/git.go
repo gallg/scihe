@@ -523,6 +523,7 @@ func (e *Editor) gitReadOnly(name, text, filetype string) *buffer.Buffer {
 	b := e.scratch("*"+name+"*", buffer.KindScratch)
 	b.SetText(strings.TrimSuffix(text, "\n"))
 	b.ReadOnly = true
+	b.Data["git"] = true
 	b.Filetype = filetype
 	e.showBuffer(b)
 	e.setCursor(e.win, Pos{})

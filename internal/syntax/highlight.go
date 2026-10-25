@@ -15,6 +15,8 @@ import (
 type Span struct {
 	Start, End int
 	Style      tcell.Style
+	// Literal marks a string or comment (brackets there don't nest)
+	Literal bool
 }
 
 // extension overrides for files chroma misdetects.
@@ -89,7 +91,11 @@ func HighlightLines(lexer chroma.Lexer, text string, nlines int, theme *Theme) [
 	line, col := 0, 0
 	for tok := it(); tok != chroma.EOF; tok = it() {
 		st := theme.TokenStyle(tok.Type)
-		plain := st == theme.Default
+		// strings and comments (InCategory(LiteralString) would match
+		// every literal, numbers included; preprocessor lines are code)
+		literal := tok.Type.InSubCategory(chroma.LiteralString) ||
+			tok.Type.InCategory(chroma.Comment) && !tok.Type.InSubCategory(chroma.CommentPreproc)
+		plain := st == theme.Default && !literal
 		v := tok.Value
 		for len(v) > 0 && line < nlines {
 			i := strings.IndexByte(v, '\n')
@@ -99,7 +105,7 @@ func HighlightLines(lexer chroma.Lexer, text string, nlines int, theme *Theme) [
 			}
 			n := utf8.RuneCountInString(seg)
 			if n > 0 && !plain {
-				out[line] = append(out[line], Span{col, col + n, st})
+				out[line] = append(out[line], Span{Start: col, End: col + n, Style: st, Literal: literal})
 			}
 			col += n
 			if i < 0 {
@@ -132,6 +138,14 @@ type Highlighter struct {
 	theme    *Theme
 	regions  func() []Region
 	gen      int // bumped by SetTheme/SetFiletype; stale background results are dropped
+}
+
+// Version is the buffer version the current spans were computed for
+// (-1 before the first result).
+func (h *Highlighter) Version() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.version
 }
 
 // NewHighlighter creates a highlighter for ft. regions, if non-nil, splits

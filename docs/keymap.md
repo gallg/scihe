@@ -181,6 +181,7 @@ See [Git](git.md).
 | `Space t e` | Expand tabs |
 | `Space t w` | Line wrap (this buffer) |
 | `Space t a` | Auto-reload (this buffer) |
+| `Space t p` | Colored brackets (this buffer) |
 | `Space t t` | Theme |
 | `Space t T` | Transparent background |
 | `Space t l` | Language |
