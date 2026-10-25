@@ -53,17 +53,20 @@ type FiletypeOptions struct {
 
 // Config is the whole configuration file.
 type Config struct {
-	Theme          string                     `toml:"theme"`
-	Transparent    bool                       `toml:"transparent"`
-	Leader         string                     `toml:"leader"`
-	WhichKeyDelay  int                        `toml:"whichkey_delay_ms"`
-	Mouse          bool                       `toml:"mouse"`
-	Python         string                     `toml:"python"`
-	Scheme         string                     `toml:"scheme"`
-	ClojureJackIn  string                     `toml:"clojure_jack_in"`
-	MaxOutputLines int                        `toml:"notebook_max_output_lines"`
-	Options        Options                    `toml:"options"`
-	Filetypes      map[string]FiletypeOptions `toml:"filetype"`
+	Theme         string `toml:"theme"`
+	Transparent   bool   `toml:"transparent"`
+	Leader        string `toml:"leader"`
+	WhichKeyDelay int    `toml:"whichkey_delay_ms"`
+	Mouse         bool   `toml:"mouse"`
+	// DeleteToRegister: deleted text goes to the unnamed register (vim);
+	// false makes d, c, x, … keep what p pastes. Config file only.
+	DeleteToRegister bool                       `toml:"delete_to_register"`
+	Python           string                     `toml:"python"`
+	Scheme           string                     `toml:"scheme"`
+	ClojureJackIn    string                     `toml:"clojure_jack_in"`
+	MaxOutputLines   int                        `toml:"notebook_max_output_lines"`
+	Options          Options                    `toml:"options"`
+	Filetypes        map[string]FiletypeOptions `toml:"filetype"`
 	// Keys maps mode ("normal", "visual", "insert") to key -> action.
 	// An action starting with ":" runs an ex command, anything else is
 	// replayed as keys.
@@ -248,14 +251,15 @@ func Default() *Config {
 	four, two := 4, 2
 	f := false
 	return &Config{
-		Theme:          "catppuccin-mocha",
-		Leader:         "<Space>",
-		WhichKeyDelay:  300,
-		Mouse:          true,
-		Python:         "python3",
-		Scheme:         "chez",
-		ClojureJackIn:  "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.3.0\"}}}' -M -m nrepl.cmdline",
-		MaxOutputLines: 30,
+		Theme:            "catppuccin-mocha",
+		Leader:           "<Space>",
+		WhichKeyDelay:    300,
+		Mouse:            true,
+		DeleteToRegister: true,
+		Python:           "python3",
+		Scheme:           "chez",
+		ClojureJackIn:    "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.3.0\"}}}' -M -m nrepl.cmdline",
+		MaxOutputLines:   30,
 		Options: Options{
 			TabStop: 4, ShiftWidth: 4, ExpandTab: true, Number: true,
 			CursorLine: true, ScrollOff: 4, IgnoreCase: true, SmartCase: true,

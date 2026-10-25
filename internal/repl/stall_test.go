@@ -68,3 +68,110 @@ func TestNREPLStalledServer(t *testing.T) {
 		t.Fatal("still alive after Close")
 	}
 }
+
+// a server that closes before answering clone fails the dial at once
+func TestNREPLCloneEOF(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("cannot listen")
+	}
+	t.Cleanup(func() { ln.Close() })
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		Decode(bufio.NewReader(conn))
+		conn.Close()
+	}()
+	closed := false
+	start := time.Now()
+	_, err = DialNREPL(ln.Addr().String(), func(error) { closed = true })
+	if err == nil || time.Since(start) > 2*time.Second {
+		t.Fatalf("dial: err %v after %v", err, time.Since(start))
+	}
+	time.Sleep(100 * time.Millisecond)
+	if closed {
+		t.Fatal("onClose called for a session never returned")
+	}
+}
+
+// a server that goes away ends the writer goroutine; Close sends the
+// close op even right after a large request
+func TestNREPLDisconnectAndCloseOp(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("cannot listen")
+	}
+	t.Cleanup(func() { ln.Close() })
+	gotClose := make(chan bool, 1)
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		r := bufio.NewReader(conn)
+		for {
+			v, err := Decode(r)
+			if err != nil {
+				gotClose <- false
+				return
+			}
+			m := v.(map[string]any)
+			switch m["op"] {
+			case "clone":
+				Encode(conn, map[string]any{"id": m["id"], "new-session": "s1", "status": []any{"done"}})
+			case "close":
+				gotClose <- true
+				return
+			}
+		}
+	}()
+	c, err := DialNREPL(ln.Addr().String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Eval(strings.Repeat("x", 1<<20), "", func(Result) {})
+	c.Close()
+	select {
+	case ok := <-gotClose:
+		if !ok {
+			t.Fatal("close op not delivered")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("server never got the close op")
+	}
+	select {
+	case <-c.wdone:
+	default:
+		t.Fatal("writer not stopped")
+	}
+
+	// the server closes the connection: the writer stops by itself
+	go func() {
+		conn, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		v, _ := Decode(bufio.NewReader(conn))
+		Encode(conn, map[string]any{"id": v.(map[string]any)["id"], "new-session": "s2", "status": []any{"done"}})
+		time.Sleep(100 * time.Millisecond)
+		conn.Close()
+	}()
+	ended := make(chan struct{})
+	c2, err := DialNREPL(ln.Addr().String(), func(error) { close(ended) })
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-ended:
+	case <-time.After(3 * time.Second):
+		t.Fatal("onClose not called")
+	}
+	select {
+	case <-c2.wdone:
+	case <-time.After(time.Second):
+		t.Fatal("writer still running after the server left")
+	}
+}

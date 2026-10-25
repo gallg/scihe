@@ -22,9 +22,11 @@ type bufList struct {
 	marks map[int]rune // buffer id -> '*' marked, 'D' flagged
 }
 
-const bufListHelp = "<CR> open  o split  m/u/U/t marks  d flag  x close flagged  D close  R rename  C copy  S save  y/X file clipboard  p open clipboard  g refresh"
+const bufListHelp = "<CR> open  o split  m/u/U/t marks  d flag  x close flagged  D close  R rename  C copy  S save  y/X file clipboard  p open clipboard  g refresh  q close"
 
-const bufListNameCol = 13 // rune column where names start
+// bufListNameCol is the rune column where names start. IDs get a fixed
+// width (6 digits) so the column never moves, even after many buffers.
+const bufListNameCol = 16
 
 // exLs opens the buffer list in the current window.
 func exLs(e *Editor, a *exArgs) error {
@@ -289,12 +291,12 @@ func (e *Editor) refreshBufList(lb *buffer.Buffer) {
 	pad := func(s string, w int) string { return s + strings.Repeat(" ", max(w-textWidth(s), 0)) }
 	th := e.theme
 	// "M  ID  flags " is bufListNameCol wide
-	header := fmt.Sprintf("%-*s", bufListNameCol, "   ID  flags") + pad("name", nameW) + "   lines  " + pad("type", kindW) + "  file"
+	header := fmt.Sprintf("%-*s", bufListNameCol, "      ID  flags") + pad("name", nameW) + "   lines  " + pad("type", kindW) + "  file"
 	lines := []string{header}
 	spans := [][]syntax.Span{{{Start: 0, End: len([]rune(header)), Style: th.CurLineNr}}}
 	marked, flagged := 0, 0
 	for _, r := range rows {
-		l := fmt.Sprintf("%s %3d  %-5s ", r.mark, r.id, r.flags) + pad(r.name, nameW) +
+		l := fmt.Sprintf("%s %6d  %-5s ", r.mark, r.id, r.flags) + pad(r.name, nameW) +
 			fmt.Sprintf("  %6d  ", r.lines) + pad(r.kind, kindW) + "  " + r.file
 		lines = append(lines, l)
 		end := len([]rune(l))

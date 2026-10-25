@@ -3,6 +3,32 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.1.2 — 2026-10-25
+
+### Added
+- `delete_to_register = false` in `config.toml`: deletes (`d`, `D`,
+  `c`, `x`, visual `p`, `Space n d`, `:d`, …) no longer overwrite the
+  text `p` pastes. Naming a register (`"ad`) still stores it. Vim's
+  behaviour (`true`) stays the default.
+
+### Fixed
+- Visual `p` in a read-only buffer (help, output, logs) changed nothing
+  but still replaced the register with the selected text; the register
+  is now kept.
+- `:nbexport` commented out lines starting with `!` inside triple-quoted
+  strings, changing the program; only real shell lines are commented now.
+- `:run` arguments with an apostrophe (`:run it's here`) were merged into
+  one; an unclosed quote is now read as a plain character.
+- `:w FILE` on the buffer list, the file explorer or git status turned
+  the listing into a file while it kept working as a listing; it now
+  writes a copy of the listing and leaves it as it is.
+- nREPL: a server that closed the connection left a background writer
+  and the socket open; a server that closed before starting a session
+  made the editor wait 5 s; `:repl quit` could cut off the `close`
+  request sent to the server.
+- The buffer list misaligned its columns once buffer numbers passed 999.
+- `:bdall` did not count a markdown preview deleted with its file.
+
 ## 0.1.1 — 2026-10-22
 
 ### Added

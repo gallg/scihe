@@ -22,6 +22,7 @@ transparent = false
 leader = "<Space>"
 whichkey_delay_ms = 300
 mouse = true
+delete_to_register = true
 python = "python3"
 scheme = "chez"
 clojure_jack_in = "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.3.0\"}}}' -M -m nrepl.cmdline"
@@ -54,6 +55,7 @@ autoreload = false
 | `leader` | The leader key |
 | `whichkey_delay_ms` | Delay before the key popup appears |
 | `mouse` | Enable the mouse |
+| `delete_to_register` | Deleted text (`d`, `c`, `x`, …) goes to the register `p` pastes, as in vim. `false` keeps the last yank there instead |
 | `python` | Python interpreter, looked up on `PATH` |
 | `scheme` | Scheme REPL program |
 | `clojure_jack_in` | Command that starts an nREPL server |

@@ -60,6 +60,10 @@ Other normal-mode keys:
 | `"_` | Black hole |
 | `"+` | System clipboard |
 
+Deleted text also goes to the register `p` pastes, as in vim. To keep
+your last yank there instead, set `delete_to_register = false` in the
+[configuration](configuration.md#top-level-keys).
+
 Results of some commands are also yanked. For example, a statistic
 from the data viewer can be pasted with `p`.
 

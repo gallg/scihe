@@ -26,6 +26,9 @@ type Registers struct {
 	m         map[rune]Register
 	clipFall  Register // used when no system clipboard tool exists
 	lastClipE error
+	// noDeleteReg: deletes without a named register store nothing
+	// (delete_to_register = false in the config)
+	noDeleteReg bool
 }
 
 func newRegisters() *Registers {
@@ -79,7 +82,7 @@ func (rs *Registers) Yank(r rune, reg Register) {
 
 // Delete stores deleted text: small deletes go to "-", others shift "1".."9".
 func (rs *Registers) Delete(r rune, reg Register) {
-	if r == '_' {
+	if r == '_' || r == 0 && rs.noDeleteReg {
 		return
 	}
 	if rs.store(r, reg) {

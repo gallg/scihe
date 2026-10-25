@@ -27,3 +27,9 @@ Replacements support `&`, `\0`–`\9`, `\n`, `\r` and `\u` `\l` `\U` `\L`
 - **Files changed on disk** are detected, and can reload automatically,
   see [Auto-reload](configuration.md#auto-reload).
 - **Notebooks** need no Jupyter install, see [Notebooks](notebooks.md).
+- **`q` closes read-only buffers** (help, output, logs, the preview, the
+  buffer list) instead of recording a macro.
+- **Deletes can leave the register alone.** With
+  `delete_to_register = false`, `d`, `c`, `x`, … no longer fill the
+  register `p` pastes, see
+  [Configuration](configuration.md#top-level-keys).

@@ -199,6 +199,7 @@ func New(screen tcell.Screen, cfg *config.Config) *Editor {
 		cwd:          cwd,
 	}
 	e.search.forward = true
+	e.regs.noDeleteReg = !cfg.DeleteToRegister
 	e.setupKeymaps()
 	e.applyUserKeys()
 	for _, w := range cfg.Warnings {

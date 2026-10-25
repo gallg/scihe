@@ -473,6 +473,15 @@ func (e *Editor) writeBuffer(b *buffer.Buffer, path string, force bool) error {
 			}
 		}
 	}
+	// a listing with its own keys (buffer list, explorer, git status,
+	// table) stays a listing: :w FILE writes a copy of its text
+	if b.Kind == buffer.KindScratch && e.localMaps[b.ID] != nil {
+		if err := b.SaveCopy(path); err != nil {
+			return err
+		}
+		e.infof("%q: listing written to %s", b.Name, path)
+		return nil
+	}
 	var err error
 	if k := e.kernels[b.ID]; k != nil && k.nb != nil {
 		err = e.saveNotebook(b, path)
@@ -746,8 +755,8 @@ func exBdelete(e *Editor, a *exArgs) error {
 // ones (and tables with staged edits, with their source).
 func exBdeleteAll(e *Editor, a *exArgs) error {
 	var kept []string
-	n := 0
-	for _, b := range e.listedBuffers() {
+	before := e.listedBuffers()
+	for _, b := range before {
 		if !e.bufferAlive(b) {
 			continue
 		}
@@ -761,7 +770,14 @@ func exBdeleteAll(e *Editor, a *exArgs) error {
 		if err := e.deleteBuffer(b, true); err != nil {
 			return err
 		}
-		n++
+	}
+	// count what went (previews deleted with their source included; not
+	// the [No Name] made to replace the last buffer)
+	n := 0
+	for _, b := range before {
+		if !e.bufferAlive(b) {
+			n++
+		}
 	}
 	if len(kept) > 0 {
 		return fmt.Errorf("E89: %d buffer(s) deleted; kept with unsaved changes: %s (add ! to discard)", n, strings.Join(kept, ", "))

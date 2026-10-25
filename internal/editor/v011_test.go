@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gdamore/tcell/v2"
+
 	"scihe/internal/buffer"
+	"scihe/internal/config"
 )
 
 // SPC f Y reloads from disk even with unsaved changes; u brings them back.
@@ -305,5 +308,193 @@ func TestGlobalJoinAndPutDigit(t *testing.T) {
 	typeKeys(e, "yyjdd:put 0<CR>")
 	if curText(e) != "one\none" {
 		t.Fatalf(":put 0: %q", curText(e))
+	}
+}
+
+// delete_to_register = false: deletes keep what p pastes, everywhere
+func TestDeleteToRegisterOff(t *testing.T) {
+	if !config.Default().DeleteToRegister {
+		t.Fatal("delete_to_register must default to true")
+	}
+	newEd := func(on bool, text string) *Editor {
+		e := newTestEditor(t, text)
+		e.cfg.DeleteToRegister = on
+		e.regs.noDeleteReg = !on
+		return e
+	}
+	unnamed := func(e *Editor) string {
+		r, _ := e.regs.Get('"')
+		return r.Text
+	}
+	// yank the first line, delete on the second: p still has the yank
+	for _, c := range []struct{ name, keys, after string }{
+		{"dd", "yyjdd", "keep\nother"},
+		{"D", "yyjD", "keep\n\nother"},
+		{"dw", "yyjdw", "keep\n\nother"},
+		{"x", "yyjx", "keep\nropme\nother"},
+		{"X", "yyj$X", "keep\ndrope\nother"},
+		{"cw", "yyjcwnew<Esc>", "keep\nnew\nother"},
+		{"s", "yyjsZ<Esc>", "keep\nZropme\nother"},
+		{"visual d", "yyjVd", "keep\nother"},
+		{"visual p", "yyjVp", "keep\nkeep\nother"},
+		{":d", "yyj:d<CR>", "keep\nother"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := newEd(false, "keep\ndropme\nother")
+			typeKeys(e, c.keys)
+			if curText(e) != c.after {
+				t.Fatalf("text %q, want %q", curText(e), c.after)
+			}
+			if got := unnamed(e); got != "keep\n" {
+				t.Fatalf("unnamed register %q, want the yank", got)
+			}
+		})
+	}
+	// a named register still gets the deleted text
+	e := newEd(false, "keep\ndropme")
+	typeKeys(e, `yyj"add`)
+	if r, _ := e.regs.Get('a'); r.Text != "dropme\n" || unnamed(e) != "dropme\n" {
+		t.Fatalf(`"add: a=%q unnamed=%q`, r.Text, unnamed(e))
+	}
+	// the default is vim: the deleted line replaces the yank
+	e = newEd(true, "keep\ndropme")
+	typeKeys(e, "yyjdd")
+	if unnamed(e) != "dropme\n" {
+		t.Fatalf("default: unnamed %q", unnamed(e))
+	}
+}
+
+// Space n d follows delete_to_register too
+func TestDeleteToRegisterNotebookCell(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.ipynb")
+	os.WriteFile(path, []byte(`{"cells":[{"cell_type":"code","id":"a","metadata":{},"execution_count":null,"outputs":[],"source":["x = 1"]},{"cell_type":"code","id":"b","metadata":{},"execution_count":null,"outputs":[],"source":["y = 2"]}],"metadata":{},"nbformat":4,"nbformat_minor":5}`), 0o644)
+	for _, on := range []bool{true, false} {
+		e := newTestEditor(t, "")
+		e.regs.noDeleteReg = !on
+		e.regs.Yank(0, Register{Text: "yanked\n", Type: RegLine})
+		typeKeys(e, ":e "+path+"<CR>G<Space>nd")
+		r, _ := e.regs.Get('"')
+		if gotYank := r.Text == "yanked\n"; gotYank == on {
+			t.Fatalf("delete_to_register=%v: unnamed after Space n d = %q (msg %q)", on, r.Text, e.msg)
+		}
+	}
+}
+
+// the option is read from config.toml only (no :set, no toggle)
+func TestDeleteToRegisterFromConfigOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.toml")
+	os.WriteFile(path, []byte("delete_to_register = false\n"), 0o644)
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DeleteToRegister || len(cfg.Warnings) > 0 {
+		t.Fatalf("loaded %v, warnings %v", cfg.DeleteToRegister, cfg.Warnings)
+	}
+	s := tcell.NewSimulationScreen("UTF-8")
+	if err := s.Init(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(s.Fini)
+	e := New(s, cfg)
+	t.Cleanup(e.shutdown)
+	if !e.regs.noDeleteReg {
+		t.Fatal("config not applied to the registers")
+	}
+	e2 := newTestEditor(t, "x")
+	typeKeys(e2, ":set delete_to_register<CR>")
+	if !strings.HasPrefix(e2.msg, "E518") && !strings.Contains(e2.msg, "nknown") {
+		t.Fatalf(":set accepted the option: %q", e2.msg)
+	}
+}
+
+// the buffer list keeps its columns once buffer IDs pass 999
+func TestBufListWideIDs(t *testing.T) {
+	e, _ := bufListSetup(t)
+	for buffer.New("x").ID < 1500 {
+	}
+	path := filepath.Join(t.TempDir(), "wide.txt")
+	os.WriteFile(path, []byte("w\n"), 0o644)
+	typeKeys(e, ":e "+path+"<CR>:ls<CR>")
+	header := e.win.buf.LineString(0)
+	if !strings.HasPrefix(header[bufListNameCol:], "name") {
+		t.Fatalf("header %q", header)
+	}
+	for l := 1; l < e.win.buf.LineCount(); l++ {
+		line := e.win.buf.Line(l)
+		if len(line) <= bufListNameCol || line[bufListNameCol-1] != ' ' || line[bufListNameCol] == ' ' {
+			t.Fatalf("row %d misaligned: %q", l, string(line))
+		}
+	}
+	if l := e.win.buf.Line(e.win.cur.Line); !strings.HasPrefix(string(l[e.win.cur.Col:]), "wide.txt") {
+		t.Fatalf("cursor not on the name: %q col %d", string(l), e.win.cur.Col)
+	}
+}
+
+// :w FILE on a listing writes a copy; the listing stays a listing
+func TestWriteListingWritesCopy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "list.txt")
+	e := newTestEditor(t, "")
+	typeKeys(e, ":ls<CR>")
+	b := e.win.buf
+	typeKeys(e, ":w "+path+"<CR>")
+	data, err := os.ReadFile(path)
+	if err != nil || !strings.Contains(string(data), "name") {
+		t.Fatalf("copy not written: %v %q (msg %q)", err, data, e.msg)
+	}
+	if b.Kind != buffer.KindScratch || b.Path != "" || !b.ReadOnly || e.buflists[b.ID] == nil {
+		t.Fatalf("listing changed: kind %v path %q ro %v", b.Kind, b.Path, b.ReadOnly)
+	}
+}
+
+// visual p in a read-only buffer changes nothing, the register included
+func TestVisualPutReadOnly(t *testing.T) {
+	e := newTestEditor(t, "keep")
+	typeKeys(e, "yy")
+	e.showOutput("*output*", "alpha\nbeta")
+	typeKeys(e, "Vp")
+	if r, _ := e.regs.Get('"'); r.Text != "keep\n" || e.win.buf.Text() != "alpha\nbeta" {
+		t.Fatalf("register %q, text %q", r.Text, e.win.buf.Text())
+	}
+	if !strings.Contains(e.msg, "E21") || e.mode != ModeNormal {
+		t.Fatalf("msg %q mode %v", e.msg, e.mode)
+	}
+}
+
+// :nbexport leaves ! lines inside triple-quoted strings alone
+func TestCommentShellLines(t *testing.T) {
+	for _, c := range []struct{ in, want string }{
+		{"!ls", "# !ls"},
+		{"x = (a\n  != b)", "x = (a\n  != b)"},
+		{"msg = \"\"\"\n!important\n\"\"\"\n!ls", "msg = \"\"\"\n!important\n\"\"\"\n# !ls"},
+		{"s = '''a\n!keep'''\n  !echo", "s = '''a\n!keep'''\n  # !echo"},
+		{"q = '\"\"\"'  # not a string start\n!ls", "q = '\"\"\"'  # not a string start\n# !ls"},
+		{"# \"\"\" in a comment\n!ls", "# \"\"\" in a comment\n# !ls"},
+		{"d = \"\"\"one\"\"\"\n!ls", "d = \"\"\"one\"\"\"\n# !ls"},
+	} {
+		if got := commentShellLines(c.in); got != c.want {
+			t.Errorf("commentShellLines(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
+// an unclosed quote in :run arguments is an apostrophe
+func TestSplitArgsApostrophe(t *testing.T) {
+	if got := splitArgs("it's a test"); strings.Join(got, "|") != "it's|a|test" {
+		t.Fatalf("got %q", got)
+	}
+	if got := splitArgs(`-c "a b" 'c d'`); strings.Join(got, "|") != "-c|a b|c d" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+// :bdall counts a preview deleted with its markdown source
+func TestDeleteAllCountsPreview(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "c.md")
+	os.WriteFile(path, []byte("# c\n"), 0o644)
+	e := newTestEditor(t, "")
+	typeKeys(e, ":e "+path+"<CR>:preview<CR>:bdall<CR>")
+	if !strings.Contains(e.msg, "3 buffer(s) deleted") {
+		t.Fatalf("msg %q", e.msg)
 	}
 }

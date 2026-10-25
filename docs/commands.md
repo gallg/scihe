@@ -8,7 +8,7 @@ or offsets like `.,+5`. A `!` after a command forces it.
 
 | Command | Description |
 |---------|-------------|
-| `:w [FILE]` | Write |
+| `:w [FILE]` | Write (a listing such as `:ls` writes a copy of its text) |
 | `:wq`, `:x` | Write and close |
 | `:wa` | Write all |
 | `:wqall`, `:xall` | Write all and quit |
@@ -108,7 +108,9 @@ See [Configuration](configuration.md).
 | Other | The file as a script |
 
 Output goes to the `*run*` buffer. Quotes group words in ARGS:
-`:run --name "Ada Lovelace"` passes two arguments. See [REPLs](repls.md).
+`:run --name "Ada Lovelace"` passes two arguments. A quote that is never
+closed counts as a plain character: `:run it's` passes `it's`. See
+[REPLs](repls.md).
 
 ## Notebooks
 

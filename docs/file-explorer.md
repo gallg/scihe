@@ -58,6 +58,7 @@ the buffer you came from, `+` a modified buffer, `RO` a read-only one.
 | `p` | Open the file clipboard's files |
 | `g` | Refresh |
 | `?` | Show these keys |
+| `q` | Close the list |
 
 Closing a buffer with unsaved changes asks first. `Space b b` is the
 quick fuzzy switcher.

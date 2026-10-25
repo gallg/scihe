@@ -1018,7 +1018,55 @@ func exNbOutput(e *Editor, a *exArgs) error {
 }
 
 // shellLineRe matches a `!command` line of a code cell.
-var shellLineRe = regexp.MustCompile(`(?m)^([ \t]*)!([^=]|$)`)
+var shellLineRe = regexp.MustCompile(`^([ \t]*)!([^=]|$)`)
+
+// commentShellLines comments out the `!command` lines of a code cell,
+// like jupytext. Lines inside a triple-quoted string are left alone.
+func commentShellLines(src string) string {
+	lines := strings.Split(src, "\n")
+	open := "" // the triple quote of a string still open at line end
+	for i, l := range lines {
+		if open == "" {
+			lines[i] = shellLineRe.ReplaceAllString(l, "$1# !$2")
+		}
+		open = tripleQuoteState(l, open)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// tripleQuoteState scans one line of Python and returns the triple
+// quote still open at its end ("" if none), given the one open at its
+// start. Short strings and comments are skipped so their quotes don't
+// count.
+func tripleQuoteState(line, open string) string {
+	for i := 0; i < len(line); i++ {
+		rest := line[i:]
+		if open != "" {
+			if strings.HasPrefix(rest, open) {
+				i += len(open) - 1
+				open = ""
+			} else if line[i] == '\\' {
+				i++
+			}
+			continue
+		}
+		switch c := line[i]; {
+		case c == '#':
+			return ""
+		case strings.HasPrefix(rest, `"""`) || strings.HasPrefix(rest, "'''"):
+			open = rest[:3]
+			i += 2
+		case c == '"' || c == '\'':
+			// a short string: skip to its closing quote
+			for i++; i < len(line) && line[i] != c; i++ {
+				if line[i] == '\\' {
+					i++
+				}
+			}
+		}
+	}
+	return open
+}
 
 func exNbExport(e *Editor, a *exArgs) error {
 	ks, err := e.notebookHere()
@@ -1041,7 +1089,7 @@ func exNbExport(e *Editor, a *exArgs) error {
 		switch c.Type {
 		case "code":
 			// `!command` lines are not Python: commented out like jupytext
-			sb.WriteString("# %%\n" + shellLineRe.ReplaceAllString(c.Source, "$1# !$2"))
+			sb.WriteString("# %%\n" + commentShellLines(c.Source))
 		default:
 			sb.WriteString("# %% [" + c.Type + "]\n")
 			for j, l := range strings.Split(c.Source, "\n") {

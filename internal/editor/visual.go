@@ -340,6 +340,12 @@ func vJoin(spaces bool) ActionFunc {
 func vPut(keepReg bool) ActionFunc {
 	return func(c *ctx) {
 		e := c.e
+		if c.b.ReadOnly {
+			// nothing is replaced, so no register may change either
+			e.exitVisual()
+			e.errorf("E21: Cannot make changes, buffer is read-only")
+			return
+		}
 		reg, ok := e.regs.Get(c.reg)
 		if !ok {
 			e.exitVisual()

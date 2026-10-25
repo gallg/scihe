@@ -870,6 +870,10 @@ func splitArgs(s string) []string {
 	if has {
 		out = append(out, cur.String())
 	}
+	if quote != 0 {
+		// an unclosed quote is an apostrophe (`it's`), not a quote
+		return strings.Fields(s)
+	}
 	return out
 }
 

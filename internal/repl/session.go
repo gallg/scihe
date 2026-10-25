@@ -54,6 +54,7 @@ type NREPL struct {
 	// requests are written by writeLoop, so a server that stops reading
 	// never blocks the caller (the UI) or Close
 	wq    [][]byte      // encoded requests not yet written (c.mu)
+	wbusy bool          // writeLoop is writing a batch (c.mu)
 	wsig  chan struct{} // wakes writeLoop
 	wdone chan struct{} // closed by Close: writeLoop ends
 	wonce sync.Once
@@ -87,25 +88,38 @@ func DialNREPL(addr string, onClose func(error)) (*NREPL, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := &NREPL{addr: addr, conn: conn, pending: map[string]func(map[string]any){}, onClose: onClose,
+	// onClose is set only once the session is returned: a failed dial
+	// reports its error, not a closed session
+	c := &NREPL{addr: addr, conn: conn, pending: map[string]func(map[string]any){},
 		wsig: make(chan struct{}, 1), wdone: make(chan struct{})}
 	go c.readLoop()
 	go c.writeLoop()
 	done := make(chan string, 1)
 	c.send(map[string]any{"op": "clone"}, func(m map[string]any) {
-		if s, ok := m["new-session"].(string); ok {
-			done <- s
+		s, _ := m["new-session"].(string)
+		if s != "" || isDone(m) {
+			select {
+			case done <- s: // "" : answered without a session, or closed
+			default:
+			}
 		}
 	}, false)
-	select {
-	case s := <-done:
-		c.mu.Lock()
-		c.session = s
-		c.mu.Unlock()
-	case <-time.After(5 * time.Second):
+	fail := func(msg string) (*NREPL, error) {
 		c.stopWriter()
 		conn.Close()
-		return nil, errors.New("nREPL: no reply to clone")
+		return nil, errors.New(msg)
+	}
+	select {
+	case s := <-done:
+		if s == "" {
+			return fail("nREPL: the server closed or refused the session")
+		}
+		c.mu.Lock()
+		c.session = s
+		c.onClose = onClose
+		c.mu.Unlock()
+	case <-time.After(5 * time.Second):
+		return fail("nREPL: no reply to clone")
 	}
 	return c, nil
 }
@@ -157,6 +171,7 @@ func (c *NREPL) writeLoop() {
 			c.mu.Lock()
 			q := c.wq
 			c.wq = nil
+			c.wbusy = len(q) > 0
 			c.mu.Unlock()
 			if len(q) == 0 {
 				break
@@ -164,6 +179,9 @@ func (c *NREPL) writeLoop() {
 			for _, p := range q {
 				if _, err := c.conn.Write(p); err != nil {
 					c.conn.Close()
+					c.mu.Lock()
+					c.wbusy = false
+					c.mu.Unlock()
 					return
 				}
 			}
@@ -208,8 +226,14 @@ func (c *NREPL) readLoop() {
 	for _, cb := range pend {
 		cb(map[string]any{"err": "connection closed\n", "status": []any{"done"}})
 	}
-	if c.onClose != nil {
-		c.onClose(err)
+	// the server is gone: end the writer and free the socket
+	c.stopWriter()
+	c.conn.Close()
+	c.mu.Lock()
+	onClose := c.onClose
+	c.mu.Unlock()
+	if onClose != nil {
+		onClose(err)
 	}
 }
 
@@ -266,9 +290,9 @@ func (c *NREPL) Close() {
 		deadline := time.Now().Add(500 * time.Millisecond)
 		for time.Now().Before(deadline) {
 			c.mu.Lock()
-			n := len(c.wq)
+			idle := len(c.wq) == 0 && !c.wbusy
 			c.mu.Unlock()
-			if n == 0 {
+			if idle {
 				break
 			}
 			time.Sleep(10 * time.Millisecond)
