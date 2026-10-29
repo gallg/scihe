@@ -40,8 +40,9 @@ What changed in each version is in the [Changelog](docs/changelog.md).
 
 Press `Space` or run `:help` inside the editor for every key and command.
 The full documentation lives in the [docs folder](docs/index.md).
-Configuration lives in `~/.config/scihe/config.toml` (declarative only,
-no scripting — see `:config`).
+Configuration lives in `~/.config/scihe/config.toml` on Linux and
+`~/Library/Application Support/scihe/config.toml` on macOS (declarative
+only, no scripting — see `:config`).
 
 ## Install
 

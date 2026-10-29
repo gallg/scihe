@@ -1,7 +1,11 @@
 # Configuration
 
-Scihe reads `~/.config/scihe/config.toml`. Another file can be given
-with `$SCIHE_CONFIG` or `-config FILE`. The file is plain TOML, with no
+Scihe reads `~/.config/scihe/config.toml` on Linux (or
+`$XDG_CONFIG_HOME/scihe/config.toml` when that variable is set) and
+`~/Library/Application Support/scihe/config.toml` on macOS. Another file
+can be given with `$SCIHE_CONFIG` or `-config FILE`; `:config path` shows
+the one in use. The file is not created at startup: write it yourself, or
+let `:config save` (or choosing a theme) create it. The file is plain TOML, with no
 scripting.
 
 | Command | Description |
