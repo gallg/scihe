@@ -25,7 +25,7 @@ func checkNow(e *Editor) {
 	e.draw()
 }
 
-func TestAutoreloadMarkdownPreview(t *testing.T) {
+func TestAutoreloadMarkdown(t *testing.T) {
 	dir := t.TempDir()
 	md := filepath.Join(dir, "n.md")
 	os.WriteFile(md, []byte("# One\n\nfirst\nsecond\nthird\n"), 0o644)
@@ -39,15 +39,16 @@ func TestAutoreloadMarkdownPreview(t *testing.T) {
 	touchWrite(t, md, "# Zero\n\na\nb\nc\n")
 	checkNow(e)
 	if b.LineString(0) != "# One" || !strings.Contains(e.msg, "SPC f y reloads") {
-		t.Fatalf("without preview: %q / %q", b.LineString(0), e.msg)
+		t.Fatalf("manual: %q / %q", b.LineString(0), e.msg)
 	}
 	typeKeys(e, "<Space>fy")
-	// with the preview open it reloads by itself, and the preview follows
+	// with 'autoreload' it reloads by itself, and a rendered view follows
 	touchWrite(t, md, "# Two\n\nfirst\nsecond\nthird\nfourth\n")
-	typeKeys(e, ":preview<CR>4G")
+	typeKeys(e, ":set autoreload<CR>:mdrender<CR>")
+	rb := e.win.buf
 	checkNow(e)
 	if b.LineString(0) != "# Two" || e.modified(b) {
-		t.Fatalf("not reloaded with a preview: %q", b.Text())
+		t.Fatalf("not reloaded: %q", b.Text())
 	}
 	if !strings.Contains(e.msg, "reloaded (changed on disk)") {
 		t.Fatalf("msg %q", e.msg)
@@ -55,13 +56,10 @@ func TestAutoreloadMarkdownPreview(t *testing.T) {
 	if e.win.cur.Line != 3 {
 		t.Fatalf("cursor moved to %d", e.win.cur.Line)
 	}
-	var preview string
-	for _, p := range e.previews {
-		preview = p.buf.Text()
+	if !strings.Contains(rb.Text(), "Two") || strings.Contains(rb.Text(), "One") {
+		t.Fatalf("rendered view not updated:\n%s", rb.Text())
 	}
-	if !strings.Contains(preview, "Two") || strings.Contains(preview, "One") {
-		t.Fatalf("preview not updated:\n%s", preview)
-	}
+	typeKeys(e, ":mdrender<CR>")
 	// unsaved changes are never overwritten; reported once per version
 	typeKeys(e, "Gx")
 	touchWrite(t, md, "# Three\n")
@@ -74,12 +72,12 @@ func TestAutoreloadMarkdownPreview(t *testing.T) {
 	if e.msg != "" {
 		t.Fatalf("reported twice: %q", e.msg)
 	}
-	// preview window closed: manual again
-	typeKeys(e, ":e!<CR>:only<CR>")
+	// 'autoreload' off: manual again
+	typeKeys(e, ":e!<CR>:set noautoreload<CR>")
 	touchWrite(t, md, "# Four\n")
 	checkNow(e)
 	if b.LineString(0) != "# Three" || !strings.Contains(e.msg, "SPC f y reloads") {
-		t.Fatalf("after closing the preview: %q / %q", b.LineString(0), e.msg)
+		t.Fatalf("after 'noautoreload': %q / %q", b.LineString(0), e.msg)
 	}
 	// a deleted file is reported once and the buffer kept
 	os.Remove(md)

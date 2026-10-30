@@ -1,5 +1,5 @@
 // Package editor ties buffers, windows, vim keys, rendering and the
-// data-science features (notebooks, REPLs, markdown preview) together.
+// data-science features (notebooks, REPLs, data tables) together.
 package editor
 
 import (
@@ -122,11 +122,11 @@ type Editor struct {
 	jackInProc *os.Process
 	jobs       map[*os.Process]string // :run / :git jobs -> output buffer name
 	jobsMu     sync.Mutex
-	tempFiles  []string // image files for :nbimage, removed on exit
-	exitNotes  []string // printed by main after the terminal is restored
-	previews   map[int]*preview
-	gitViews   map[int]*gitView // status / log buffers
-	gitCommits map[int]string   // commit message buffer -> repository root
+	tempFiles  []string          // image files for :nbimage, removed on exit
+	exitNotes  []string          // printed by main after the terminal is restored
+	renders    map[int]*mdRender // rendered markdown view -> its state
+	gitViews   map[int]*gitView  // status / log buffers
+	gitCommits map[int]string    // commit message buffer -> repository root
 	heads      gitHeads
 	tables     map[int]*tableView  // table view buffer -> view
 	explorer   map[int]string      // explorer buffer -> directory
@@ -188,7 +188,7 @@ func New(screen tcell.Screen, cfg *config.Config) *Editor {
 		cmdHist:      map[byte][]string{},
 		kernels:      map[int]*kernelState{},
 		sessions:     map[string]repl.Session{},
-		previews:     map[int]*preview{},
+		renders:      map[int]*mdRender{},
 		gitViews:     map[int]*gitView{},
 		gitCommits:   map[int]string{},
 		tables:       map[int]*tableView{},
@@ -581,13 +581,7 @@ func (e *Editor) removeBuffer(b *buffer.Buffer) {
 		k.close()
 		delete(e.kernels, b.ID)
 	}
-	preview := e.previews[b.ID]
-	delete(e.previews, b.ID)
-	for src, p := range e.previews {
-		if p.buf == b {
-			delete(e.previews, src)
-		}
-	}
+	delete(e.renders, b.ID)
 	delete(e.highlighters, b.ID)
 	delete(e.brackets, b.ID)
 	delete(e.static, b.ID)
@@ -604,9 +598,11 @@ func (e *Editor) removeBuffer(b *buffer.Buffer) {
 	delete(e.gitViews, b.ID)
 	delete(e.gitCommits, b.ID)
 	delete(e.tables, b.ID)
-	// the preview of a deleted markdown buffer goes with it
-	if preview != nil && e.bufferAlive(preview.buf) {
-		e.deleteBuffer(preview.buf, true)
+	// the rendered view of a deleted markdown buffer goes with it
+	for _, r := range e.renders {
+		if r.src == b {
+			e.dropRender(r)
+		}
 	}
 }
 

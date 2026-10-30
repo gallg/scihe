@@ -153,16 +153,6 @@ func TestAuditScrolling(t *testing.T) {
 	}
 }
 
-func TestAuditPreviewReopen(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "x.md")
-	os.WriteFile(path, []byte("# x\n"), 0o644)
-	e := newTestEditor(t, "")
-	typeKeys(e, ":e "+path+"<CR>:preview<CR>:only<CR>:preview<CR>")
-	if len(e.windows()) != 2 {
-		t.Fatalf("preview not reopened after :only (%d windows)", len(e.windows()))
-	}
-}
-
 func TestAuditConfigZeroTabstop(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "c.toml")
 	os.WriteFile(p, []byte("[filetype.python]\ntabstop = 0\nshiftwidth = 0\n"), 0o644)

@@ -36,8 +36,7 @@ type Options struct {
 	Wrap           bool `toml:"wrap"`      // soft-wrap long lines
 	LineBreak      bool `toml:"linebreak"` // wrap after blanks, not mid-word
 	// Autoreload re-reads a buffer whose file changed on disk (when it
-	// has no unsaved changes); off by default (a markdown buffer with an
-	// open preview reloads anyway)
+	// has no unsaved changes); off by default
 	Autoreload bool `toml:"autoreload"`
 	// ColorBrackets colours brackets by nesting depth (off by default)
 	ColorBrackets bool `toml:"colorbrackets"`

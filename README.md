@@ -28,7 +28,8 @@ manage: just use your own terminal multiplexer.
 - **Notebooks** — open, edit and run `.ipynb` files, no Jupyter install needed.
 - **Data viewer** — CSV/TSV as an aligned table: sort, filter, edit,
   mark cells, compute statistics or transform your data with built-in or custom functions.
-- **Markdown preview** — live markdown preview with soft line wrap.
+- **Markdown** — formatting keys (emphasis, links, headings, lists, tables,
+  table of contents), formulas rendered as Unicode, images opened in your viewer.
 - **Git** — built-in, simple to use git support.
 - **File explorer** — dired-style: mark, copy, paste, move, rename, delete, create.
 - **Auto-reload** — files changed on disk are detected as you work;

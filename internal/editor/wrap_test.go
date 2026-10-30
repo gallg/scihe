@@ -8,7 +8,6 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 
-	"scihe/internal/buffer"
 	"scihe/internal/config"
 )
 
@@ -248,54 +247,4 @@ func TestWrapNotebookFrames(t *testing.T) {
 	if n < 3 {
 		t.Fatalf("framed continuation rows: %d\n%s", n, strings.Join(lines, "\n"))
 	}
-}
-
-func TestPreviewIgnoresSourceWrap(t *testing.T) {
-	md := filepath.Join(t.TempDir(), "p.md")
-	os.WriteFile(md, []byte("# T\n\n| a | long description column |\n|---|---|\n| 1 | "+prose+" |\n\n```\n"+prose+"\n```\n"), 0o644)
-	e := newTestEditor(t, "")
-	e.screen.(tcell.SimulationScreen).SetSize(80, 40)
-	typeKeys(e, ":e "+md+"<CR>:preview<CR>")
-	e.draw()
-	var pw *Window
-	for _, w := range e.windows() {
-		if w.buf.Kind == buffer.KindPreview {
-			pw = w
-		}
-	}
-	if pw == nil {
-		t.Fatal("no preview window")
-	}
-	region := func() []string {
-		var out []string
-		for _, l := range screenLines(e) {
-			if r := []rune(l); len(r) > pw.x {
-				out = append(out, string(r[pw.x:]))
-			}
-		}
-		return out
-	}
-	before := region()
-	typeKeys(e, ":set wrap<CR>")
-	e.draw()
-	if e.wraps(pw) || !e.options(e.win.buf).Wrap {
-		t.Fatal("preview window wraps / source not wrapped")
-	}
-	if after := region(); strings.Join(after, "\n") != strings.Join(before, "\n") {
-		t.Fatalf("preview changed when the source wrapped:\n%s\n---\n%s", strings.Join(before, "\n"), strings.Join(after, "\n"))
-	}
-	// everything fits the preview window: nothing cut at the edge
-	for _, l := range strings.Split(pw.buf.Text(), "\n") {
-		if w := runeWidthOf(l); w > pw.w {
-			t.Fatalf("preview line wider (%d) than its window (%d): %q", w, pw.w, l)
-		}
-	}
-}
-
-func runeWidthOf(s string) int {
-	w := 0
-	for _, r := range s {
-		w += runeWidth(r, w, 8)
-	}
-	return w
 }

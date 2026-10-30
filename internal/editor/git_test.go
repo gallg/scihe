@@ -147,6 +147,111 @@ func TestGitStatusStageCommit(t *testing.T) {
 	waitFor(t, e, "branch", func() bool { return e.gitBranch(dir) == "main" })
 }
 
+func TestGitStatusUnstageAll(t *testing.T) {
+	dir := gitRepo(t)
+	a, b := filepath.Join(dir, "a.txt"), filepath.Join(dir, "b.txt")
+	os.WriteFile(a, []byte("one\n"), 0o644)
+	os.WriteFile(b, []byte("one\n"), 0o644)
+	e := newTestEditor(t, "")
+	e.cwd = dir
+	typeKeys(e, ":e "+a+"<CR>:git<CR>")
+	sb := e.win.buf
+	// unborn branch
+	typeKeys(e, "a")
+	if !strings.Contains(sb.Text(), "Staged changes (2)") {
+		t.Fatalf("after stage all:\n%s", sb.Text())
+	}
+	typeKeys(e, "U")
+	if strings.Contains(sb.Text(), "Staged changes") || !strings.Contains(sb.Text(), "Untracked files (2)") {
+		t.Fatalf("after unstage all (no commit):\n%s", sb.Text())
+	}
+	// with a commit: both modified files leave the index
+	if _, err := git(dir, "add", "-A"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := git(dir, "commit", "-q", "-m", "init"); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(a, []byte("two\n"), 0o644)
+	os.WriteFile(b, []byte("two\n"), 0o644)
+	typeKeys(e, "a")
+	if !strings.Contains(sb.Text(), "Staged changes (2)") {
+		t.Fatalf("after stage all:\n%s", sb.Text())
+	}
+	typeKeys(e, "U")
+	if strings.Contains(sb.Text(), "Staged changes") || !strings.Contains(sb.Text(), "Unstaged changes (2)") {
+		t.Fatalf("after unstage all:\n%s", sb.Text())
+	}
+	if data, _ := os.ReadFile(a); string(data) != "two\n" {
+		t.Fatalf("unstage all touched the work tree: %q", data)
+	}
+}
+
+func TestGitStatusUnstageAllGuards(t *testing.T) {
+	dir := gitRepo(t)
+	f := filepath.Join(dir, "f.txt")
+	commit := func(msg string) {
+		t.Helper()
+		if out, err := git(dir, "commit", "-q", "-am", msg); err != nil {
+			t.Fatalf("commit: %v %s", err, out)
+		}
+	}
+	os.WriteFile(f, []byte("a\n"), 0o644)
+	git(dir, "add", "f.txt")
+	commit("a")
+	e := newTestEditor(t, "")
+	e.cwd = dir
+	typeKeys(e, ":e "+f+"<CR>:git<CR>")
+	sb := e.win.buf
+	// nothing staged: a message, not a git error
+	typeKeys(e, "U")
+	if !strings.Contains(e.msg, "nothing staged") {
+		t.Fatalf("msg %q", e.msg)
+	}
+	// a merge conflict is left alone
+	git(dir, "checkout", "-q", "-b", "other")
+	os.WriteFile(f, []byte("b\n"), 0o644)
+	commit("b")
+	git(dir, "checkout", "-q", "main")
+	os.WriteFile(f, []byte("c\n"), 0o644)
+	commit("c")
+	git(dir, "merge", "other")
+	typeKeys(e, "RU")
+	if !strings.Contains(e.msg, "resolve the merge conflicts") || !strings.Contains(sb.Text(), "Merge conflicts (1)") {
+		t.Fatalf("conflict: %q\n%s", e.msg, sb.Text())
+	}
+}
+
+// file names are not patterns: staging "[id].txt" leaves "i.txt" alone
+func TestGitStatusLiteralNames(t *testing.T) {
+	dir := gitRepo(t)
+	for _, n := range []string{"[id].txt", "i.txt", "d.txt"} {
+		os.WriteFile(filepath.Join(dir, n), []byte("x\n"), 0o644)
+	}
+	e := newTestEditor(t, "")
+	e.cwd = dir
+	typeKeys(e, ":e "+filepath.Join(dir, "i.txt")+"<CR>:git<CR>")
+	sb := e.win.buf
+	for l := 0; l < sb.LineCount(); l++ {
+		if en, ok := e.gitViews[sb.ID].entries[l]; ok && en.path == "[id].txt" {
+			e.win.cur = Pos{l, 0}
+		}
+	}
+	typeKeys(e, "s")
+	if !strings.Contains(sb.Text(), "Staged changes (1)") || !strings.Contains(sb.Text(), "Untracked files (2)") {
+		t.Fatalf("after staging [id].txt:\n%s", sb.Text())
+	}
+	for l := 0; l < sb.LineCount(); l++ {
+		if en, ok := e.gitViews[sb.ID].entries[l]; ok && en.section == gitStaged {
+			e.win.cur = Pos{l, 0}
+		}
+	}
+	typeKeys(e, "u")
+	if !strings.Contains(sb.Text(), "Untracked files (3)") {
+		t.Fatalf("after unstaging:\n%s", sb.Text())
+	}
+}
+
 func TestGitAsyncCommand(t *testing.T) {
 	dir := gitRepo(t)
 	e := newTestEditor(t, "")
@@ -207,5 +312,21 @@ func TestGitStatusPerRepository(t *testing.T) {
 	typeKeys(e, ":enew<CR>:git<CR>")
 	if e.win.buf == sa || !strings.Contains(e.win.buf.Text(), "in-b.txt") || !strings.Contains(sa.Text(), "in-a.txt") {
 		t.Fatalf("status buffers mixed up:\n%s\n---\n%s", sa.Text(), e.win.buf.Text())
+	}
+}
+
+// with GIT_LITERAL_PATHSPECS git takes names literally already
+func TestGitLiteralEnv(t *testing.T) {
+	dir := gitRepo(t)
+	os.WriteFile(filepath.Join(dir, "a.txt"), []byte("x\n"), 0o644)
+	t.Setenv("GIT_LITERAL_PATHSPECS", "1")
+	e := newTestEditor(t, "")
+	e.cwd = dir
+	typeKeys(e, ":e "+filepath.Join(dir, "a.txt")+"<CR>:git add<CR>")
+	if out, _ := git(dir, "status", "--porcelain"); !strings.HasPrefix(out, "A  a.txt") {
+		t.Fatalf("not staged: %q (%q)", out, e.msg)
+	}
+	if !strings.Contains(e.msg, "staged a.txt") {
+		t.Fatalf("msg %q", e.msg)
 	}
 }

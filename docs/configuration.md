@@ -126,15 +126,15 @@ second.
 |-----------|--------------|
 | `autoreload` off (default) | A message; reload with `Space f y` |
 | `autoreload` on | The buffer reloads |
-| Markdown with its preview open | The buffer reloads |
 | Unsaved changes | Never reloaded; a warning is shown |
 | File deleted | A message; `:w` writes it again |
 | Notebook with a cell running | Reloads when the cells finish |
 
 Each change is reported once. `Space t a` toggles auto-reload for the
-current buffer. A table view sets it on its file. Buffers without a
-file (git, explorer, buffer list, output, logs, the preview) say that
-auto-reload is not available there. A new buffer gets it once saved.
+current buffer. A table view or a rendered markdown view sets it on its
+file. Buffers without a file (git, explorer, buffer list, output, logs)
+say that auto-reload is not available there. A new buffer gets it once
+saved.
 
 ## Key remapping
 

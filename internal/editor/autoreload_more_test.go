@@ -39,7 +39,6 @@ func TestAutoreloadUnsupportedMessages(t *testing.T) {
 		{"help", ":help<CR>", "not available in output buffers"},
 		{"messages", ":messages<CR>", "not available in output buffers"},
 		{"log", "", "not available in logs"},
-		{"preview", ":e " + md + "<CR>:preview<CR><C-w>w", "the preview follows its file"},
 	}
 	for _, c := range cases {
 		if c.name == "log" {

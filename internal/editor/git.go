@@ -324,8 +324,8 @@ func (e *Editor) refreshGitStatus(b *buffer.Buffer) error {
 		lines = append(lines, "", "Nothing to commit, working tree clean")
 	}
 	lines = append(lines, "",
-		"s stage   u unstage   a stage all   x discard   c commit   <CR> open",
-		"d diff    D diff all  l log         p push      F pull     R refresh   q close")
+		"s stage   u unstage   a stage all   U unstage all   x discard   c commit   <CR> open",
+		"d diff    D diff all  l log         p push          F pull      R refresh  q close")
 	b.SetText(strings.Join(lines, "\n"))
 	e.forWindows(func(w *Window) {
 		if w.buf == b {
@@ -361,7 +361,7 @@ func (e *Editor) gitStatusKeys() *keymap.Map[*Cmd] {
 	}
 	bind("s", "stage file", func(c *ctx, gv *gitView, en *gitEntry) {
 		if en != nil {
-			run(c, gv, "add", "--", en.path)
+			run(c, gv, "add", "--", literal(en.path))
 		}
 	})
 	bind("u", "unstage file", func(c *ctx, gv *gitView, en *gitEntry) {
@@ -369,12 +369,32 @@ func (e *Editor) gitStatusKeys() *keymap.Map[*Cmd] {
 			return
 		}
 		if _, err := git(gv.root, "rev-parse", "-q", "--verify", "HEAD"); err != nil {
-			run(c, gv, "rm", "--cached", "-q", "--", en.path) // no commit yet
+			run(c, gv, "rm", "--cached", "-q", "--", literal(en.path)) // no commit yet
 			return
 		}
-		run(c, gv, "restore", "--staged", "--", en.path)
+		run(c, gv, "restore", "--staged", "--", literal(en.path))
 	})
 	bind("a", "stage all", func(c *ctx, gv *gitView, en *gitEntry) { run(c, gv, "add", "-A") })
+	bind("U", "unstage all", func(c *ctx, gv *gitView, en *gitEntry) {
+		staged := false
+		for _, x := range gv.entries {
+			if x.section == gitConflict {
+				// restoring the index would mark the conflicts resolved
+				e.warnf("resolve the merge conflicts first (u unstages one file)")
+				return
+			}
+			staged = staged || x.section == gitStaged
+		}
+		if !staged {
+			e.infof("nothing staged")
+			return
+		}
+		if _, err := git(gv.root, "rev-parse", "-q", "--verify", "HEAD"); err != nil {
+			run(c, gv, "rm", "--cached", "-r", "-q", "--", ".") // no commit yet
+			return
+		}
+		run(c, gv, "restore", "--staged", "--", ".")
+	})
 	bind("x", "discard changes", func(c *ctx, gv *gitView, en *gitEntry) {
 		if en == nil {
 			return
@@ -385,7 +405,7 @@ func (e *Editor) gitStatusKeys() *keymap.Map[*Cmd] {
 		}
 		e.prompt("Discard changes to "+en.path+"? (y/N) ", "", func(s string, ok bool) {
 			if confirmed(s, ok) {
-				run(c, gv, "restore", "--", en.path)
+				run(c, gv, "restore", "--", literal(en.path))
 				e.reloadUnmodified(filepath.Join(gv.root, en.path))
 			}
 		})
@@ -401,11 +421,11 @@ func (e *Editor) gitStatusKeys() *keymap.Map[*Cmd] {
 		}
 		switch en.section {
 		case gitStaged:
-			e.gitShowDiff(gv.root, "diff: "+en.path+" (staged)", "diff", "--cached", "--", en.path)
+			e.gitShowDiff(gv.root, "diff: "+en.path+" (staged)", "diff", "--cached", "--", literal(en.path))
 		case gitUntracked:
 			e.gitShowDiff(gv.root, "diff: "+en.path, "diff", "--no-index", "--", os.DevNull, en.path)
 		default:
-			e.gitShowDiff(gv.root, "diff: "+en.path, "diff", "--", en.path)
+			e.gitShowDiff(gv.root, "diff: "+en.path, "diff", "--", literal(en.path))
 		}
 	})
 	bind("D", "diff all", func(c *ctx, gv *gitView, en *gitEntry) {
@@ -436,16 +456,14 @@ func (e *Editor) closeSpecial(w *Window, b *buffer.Buffer) {
 	}
 }
 
-// closeReadOnly closes a read-only special buffer shown in w: the
-// markdown preview is turned off, other buffers lose their window (or
-// give way to the alternate buffer). Logs are kept alive for the REPL or
-// job still writing into them.
+// closeReadOnly closes a read-only special buffer shown in w: a
+// rendered markdown view gives way to its source, other buffers lose
+// their window (or give way to the alternate buffer). Logs are kept
+// alive for the REPL or job still writing into them.
 func (e *Editor) closeReadOnly(w *Window, b *buffer.Buffer) {
-	for src, p := range e.previews {
-		if p.buf == b {
-			e.closePreview(src)
-			return
-		}
+	if r := e.renders[b.ID]; r != nil {
+		e.leaveRender(r)
+		return
 	}
 	if e.closeWindow(w) {
 		return
@@ -477,6 +495,16 @@ func (e *Editor) openPath(w *Window, path string) {
 		return
 	}
 	e.setBuffer(w, b)
+}
+
+// literal makes git take a file name as it is, not as a pattern
+// ("[id].tsx" would also match "i.tsx"). With GIT_LITERAL_PATHSPECS set
+// git already does, and would take the magic for part of the name.
+func literal(path string) string {
+	if v := os.Getenv("GIT_LITERAL_PATHSPECS"); v != "" && v != "0" {
+		return path
+	}
+	return ":(literal)" + path
 }
 
 // gitRel is path relative to the work tree root. git reports the root
@@ -555,7 +583,7 @@ func (e *Editor) gitLog(root, path string, extra ...string) {
 		title += " " + strings.Join(extra, " ")
 	}
 	if path != "" {
-		args = append(args, "--follow", "--", path)
+		args = append(args, "--follow", "--", literal(path))
 		title += ": " + filepath.Base(path)
 	}
 	out, err := git(root, args...)
@@ -774,7 +802,7 @@ func exGit(e *Editor, a *exArgs) error {
 			if rel == "" {
 				e.gitShowDiff(root, "diff (all)", "diff", "HEAD")
 			} else {
-				e.gitShowDiff(root, "diff: "+rel, "diff", "HEAD", "--", rel)
+				e.gitShowDiff(root, "diff: "+rel, "diff", "HEAD", "--", literal(rel))
 			}
 			return nil
 		}
@@ -810,7 +838,7 @@ func exGit(e *Editor, a *exArgs) error {
 					return err
 				}
 			}
-			args = append(args, "--", rel)
+			args = append(args, "--", literal(rel))
 		}
 		args[0] = "add"
 		if _, err := git(root, args...); err != nil {
@@ -820,6 +848,9 @@ func exGit(e *Editor, a *exArgs) error {
 		staged := args[1:]
 		if len(staged) > 0 && staged[0] == "--" {
 			staged = staged[1:]
+		}
+		for i, s := range staged {
+			staged[i] = strings.TrimPrefix(s, ":(literal)")
 		}
 		e.infof("staged %s", strings.Join(staged, " "))
 		return nil

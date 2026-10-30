@@ -122,5 +122,5 @@ are detected, see [Auto-reload](configuration.md#auto-reload).
 ## Read-only buffers
 
 Help, messages, statistics, command output, REPL logs, git diffs, the
-buffer list and the markdown preview can't be edited. Press `q` to
-close them.
+buffer list and the rendered markdown view can't be edited. Press `q`
+to close them.

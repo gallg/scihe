@@ -1,6 +1,6 @@
 // Command scihe runs Scihe, a modal (vim-style) terminal editor for data
 // science: syntax highlighting, which-key, Jupyter notebooks, Lisp REPLs,
-// live markdown preview, git and a CSV/TSV data viewer — in a single
+// markdown with rendered formulas, git and a CSV/TSV data viewer — in a single
 // binary, no plugins.
 package main
 
@@ -22,7 +22,7 @@ import (
 
 // version is the release; builds can override it with
 // -ldflags "-X main.version=…".
-var version = "0.1.2"
+var version = "0.2.0"
 
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")

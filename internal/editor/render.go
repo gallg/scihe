@@ -62,9 +62,9 @@ func (e *Editor) draw() {
 	if sw <= 0 || sh <= 0 {
 		return
 	}
-	// previews depend on window sizes, so lay out first
+	// table views depend on window sizes, so lay out first
 	e.layout(0, 0, sw, max(sh-1, 1))
-	e.updatePreviews()
+	e.updateRenders()
 	e.updateTables()
 	e.updateBufLists()
 	e.layout(0, 0, sw, max(sh-1, 1))

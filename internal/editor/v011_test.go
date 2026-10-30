@@ -124,22 +124,19 @@ func TestQClosesReadOnlyBuffers(t *testing.T) {
 	typeKeys(e, "q")
 }
 
-func TestQClosesPreviewAndLogs(t *testing.T) {
+func TestQClosesRenderAndLogs(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "n.md")
 	os.WriteFile(path, []byte("# hi\n"), 0o644)
 	e := newTestEditor(t, "")
-	typeKeys(e, ":e "+path+"<CR>:preview<CR>")
+	typeKeys(e, ":e "+path+"<CR>")
 	md := e.win.buf
-	if len(e.previews) != 1 {
-		t.Fatal("no preview")
-	}
-	typeKeys(e, "<C-w>w")
-	if e.win.buf.Kind != buffer.KindPreview {
-		t.Fatalf("not in the preview: %q", e.win.buf.Name)
+	typeKeys(e, ":mdrender<CR>")
+	if len(e.renders) != 1 || e.win.buf.Kind != buffer.KindPreview {
+		t.Fatalf("not in the rendered view: %q", e.win.buf.Name)
 	}
 	typeKeys(e, "q")
-	if len(e.previews) != 0 || len(e.windows()) != 1 || e.win.buf != md {
-		t.Fatalf("q in preview: previews %d windows %d", len(e.previews), len(e.windows()))
+	if len(e.renders) != 0 || len(e.windows()) != 1 || e.win.buf != md {
+		t.Fatalf("q in rendered view: renders %d windows %d", len(e.renders), len(e.windows()))
 	}
 
 	// a REPL log in the only window: q switches away but keeps the log
@@ -269,20 +266,20 @@ func TestStagedTableGuards(t *testing.T) {
 	}
 }
 
-// audit fix: deleting a markdown buffer deletes its preview too
-func TestDeleteMarkdownDeletesPreview(t *testing.T) {
+// deleting a markdown buffer deletes its rendered view too
+func TestDeleteMarkdownDeletesRender(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "p.md")
 	os.WriteFile(path, []byte("# hi\n"), 0o644)
 	e := newTestEditor(t, "")
-	typeKeys(e, ":e "+path+"<CR>:preview<CR>")
+	typeKeys(e, ":e "+path+"<CR>")
 	md := e.win.buf
-	var pb *buffer.Buffer
-	for _, p := range e.previews {
-		pb = p.buf
+	typeKeys(e, ":mdrender<CR>")
+	rb := e.win.buf
+	if err := e.deleteBuffer(md, false); err != nil {
+		t.Fatal(err)
 	}
-	typeKeys(e, ":bd<CR>")
-	if e.bufferAlive(md) || pb == nil || e.bufferAlive(pb) {
-		t.Fatalf("source alive %v, preview alive %v", e.bufferAlive(md), pb != nil && e.bufferAlive(pb))
+	if e.bufferAlive(md) || e.bufferAlive(rb) || len(e.renders) != 0 {
+		t.Fatalf("source alive %v, rendered view alive %v", e.bufferAlive(md), e.bufferAlive(rb))
 	}
 	for _, w := range e.windows() {
 		if !e.bufferAlive(w.buf) {
@@ -488,12 +485,12 @@ func TestSplitArgsApostrophe(t *testing.T) {
 	}
 }
 
-// :bdall counts a preview deleted with its markdown source
-func TestDeleteAllCountsPreview(t *testing.T) {
+// :bdall counts a rendered view deleted with its markdown source
+func TestDeleteAllCountsRender(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "c.md")
 	os.WriteFile(path, []byte("# c\n"), 0o644)
 	e := newTestEditor(t, "")
-	typeKeys(e, ":e "+path+"<CR>:preview<CR>:bdall<CR>")
+	typeKeys(e, ":e "+path+"<CR>:mdrender<CR>:bdall<CR>")
 	if !strings.Contains(e.msg, "3 buffer(s) deleted") {
 		t.Fatalf("msg %q", e.msg)
 	}

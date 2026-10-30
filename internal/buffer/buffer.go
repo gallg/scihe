@@ -76,7 +76,7 @@ type Buffer struct {
 
 	Marks map[rune]Pos
 
-	// Data lets feature packages (notebook, preview, repl) attach state.
+	// Data lets feature packages (notebook, repl) attach state.
 	Data map[string]any
 }
 
@@ -164,7 +164,7 @@ func (b *Buffer) setText(s string) {
 }
 
 // SetText replaces the whole content without recording undo history.
-// It is meant for generated buffers (preview, logs).
+// It is meant for generated buffers (rendered views, logs).
 func (b *Buffer) SetText(s string) {
 	old := len(b.lines)
 	b.setText(s)

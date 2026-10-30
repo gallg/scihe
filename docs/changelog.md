@@ -3,6 +3,42 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.0 — 2026-10-30
+
+### Added
+- Git status: `U` unstages all staged files. During a merge with
+  conflicts it does nothing (it would mark them resolved); unstage files
+  one by one with `u`.
+- Markdown formatting under `Space m`: bold, italic, inline code,
+  strikethrough, links, headings, task checkboxes, bullet and numbered
+  lists, quotes, code blocks (most also on a visual selection), table
+  alignment, a table of contents and heading jumps. They are toggles:
+  - the emphasis keys act on the whole span the cursor is in (anywhere
+    in it, markers included, also `__bold__` and `_italic_`): bold turns
+    into italic and back, and the key of the current style removes it;
+    a selection that would cross spans is refused;
+  - `Space m l` in a link leaves its text, `Space m C` in a code block
+    removes its fences.
+- `Space m r` (`:mdrender`) shows formulas (`$…$`, `$ … $`, `$$…$$`,
+  `\(…\)`, `\[…\]`, `\begin{equation}` and other math environments) as
+  Unicode text in a read-only view of the buffer; `Space f y` and
+  `:set autoreload` in the view act on the markdown file.
+  `examples/formulas.md` is a sample.
+- `Space m I` (`:mdimage`) opens the image under the cursor with the
+  system viewer. Only image files and `http(s)` links are opened: the
+  system opener also runs programs.
+
+### Fixed
+- Git: file names with `[`, `*` or `?` (such as `[id].tsx`) were taken
+  as patterns by `s`, `u`, `x`, `d`, `:git add`, `:git diff` and
+  `:git log FILE`, so staging `[id].tsx` also staged `i.tsx` and
+  `d.tsx`. They now act on that file only.
+
+### Removed
+- The markdown preview (`:preview`, `:MarkdownPreview`, `Space m p`):
+  it showed the same text as the buffer. `:run` in a markdown file no
+  longer opens it.
+
 ## 0.1.2 — 2026-10-25
 
 ### Added

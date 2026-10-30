@@ -8,7 +8,6 @@ require (
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/lucasb-eyer/go-colorful v1.3.0
 	github.com/mattn/go-runewidth v0.0.31
-	github.com/yuin/goldmark v1.8.6
 )
 
 require (

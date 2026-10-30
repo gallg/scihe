@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"fmt"
+
 	"scihe/internal/keymap"
 )
 
@@ -190,7 +192,39 @@ func (e *Editor) setupLeader() {
 	n("<leader>dT", "transform column (:transform)", func(c *ctx) { c.e.startCmdline(':', "transform ") })
 
 	group("<leader>m", "markdown")
-	ex("<leader>mp", "toggle preview", "preview")
+	ex("<leader>mr", "toggle rendered formulas", "mdrender")
+	ex("<leader>mI", "open image under cursor", "mdimage")
+	for _, k := range []struct{ key, label, marker string }{
+		{"b", "bold", "**"}, {"i", "italic", "*"}, {"c", "inline code", "`"}, {"s", "strikethrough", "~~"},
+	} {
+		k := k
+		n("<leader>m"+k.key, k.label, func(c *ctx) { c.e.mdEmphasis(c, k.marker) })
+		v("<leader>m"+k.key, k.label, func(c *ctx) { c.e.mdEmphasis(c, k.marker) })
+	}
+	n("<leader>ml", "link", func(c *ctx) { c.e.mdLink(c) })
+	v("<leader>ml", "link", func(c *ctx) { c.e.mdLink(c) })
+	n("<leader>mh", "cycle heading level", func(c *ctx) { c.e.mdHeading(c, 0) })
+	for i := 1; i <= 6; i++ {
+		i := i
+		n(fmt.Sprintf("<leader>m%d", i), fmt.Sprintf("heading %d", i), func(c *ctx) { c.e.mdHeading(c, i) })
+	}
+	for _, k := range []struct {
+		key, label string
+		f          func(c *ctx)
+	}{
+		{"x", "toggle task checkbox", func(c *ctx) { c.e.mdTask(c) }},
+		{"-", "toggle bullet list", func(c *ctx) { c.e.mdList(c, false) }},
+		{"o", "toggle numbered list", func(c *ctx) { c.e.mdList(c, true) }},
+		{"q", "toggle quote", func(c *ctx) { c.e.mdQuote(c) }},
+		{"C", "fence as code block", func(c *ctx) { c.e.mdCodeBlock(c) }},
+	} {
+		n("<leader>m"+k.key, k.label, k.f)
+		v("<leader>m"+k.key, k.label, k.f)
+	}
+	n("<leader>mt", "align table", func(c *ctx) { c.e.mdAlignTable(c) })
+	n("<leader>mT", "table of contents", func(c *ctx) { c.e.mdTOC(c) })
+	n("<leader>mn", "next heading", func(c *ctx) { c.e.mdJumpHeading(c, true) })
+	n("<leader>mN", "previous heading", func(c *ctx) { c.e.mdJumpHeading(c, false) })
 
 	group("<leader>t", "toggle")
 	ex("<leader>tn", "line numbers", "set number!")
@@ -217,7 +251,7 @@ func (e *Editor) setupLeader() {
 	ex("<leader>qQ", "quit all (discard changes)", "qa!")
 	ex("<leader>qw", "write all and quit", "wqa")
 
-	// q closes read-only special buffers (help, logs, output, preview, …);
+	// q closes read-only special buffers (help, logs, output, rendered views, …);
 	// a buffer's own keys (table view, git status) come first
 	e.readOnlyMap = keymap.NewMap[*Cmd]()
 	if _, mapped := e.cfg.Keys["normal"]["q"]; !mapped {

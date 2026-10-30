@@ -10,12 +10,16 @@ The status line always shows the current branch.
 | `s` | Stage |
 | `u` | Unstage |
 | `a` | Stage all |
+| `U` | Unstage all (not during a merge with conflicts) |
 | `x` | Discard changes |
 | `c` | Commit |
+| `<CR>` | Open the file |
 | `d` | Diff |
+| `D` | Diff of all files |
 | `l` | Log |
 | `p` | Push |
 | `F` | Pull (fast-forward) |
+| `R` | Refresh |
 | `q` | Close |
 
 ## Commands

@@ -289,35 +289,72 @@ func TestPythonBlocks(t *testing.T) {
 	}
 }
 
-func TestMarkdownPreview(t *testing.T) {
+func TestMarkdownRender(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "r.md")
-	os.WriteFile(path, []byte("# Title\n\nSome *text*.\n\n- a\n- b\n"), 0o644)
+	os.WriteFile(path, []byte("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n- a\n"), 0o644)
 	e := newTestEditor(t, "")
-	typeKeys(e, ":e "+path+"<CR><Space>mp")
-	if len(e.windows()) != 2 {
-		t.Fatal("preview window not opened")
+	typeKeys(e, ":e "+path+"<CR>3G<Space>mr")
+	md := e.findBuffer(path)
+	r := e.renders[e.win.buf.ID]
+	if r == nil || r.src != md || len(e.windows()) != 1 {
+		t.Fatalf("not rendered in place: %q", e.win.buf.Name)
 	}
-	p := e.previews[e.win.buf.ID]
-	if p == nil || !strings.Contains(p.buf.Text(), "• a") {
-		t.Fatalf("preview content: %+v", p)
+	if got := r.buf.LineString(2); got != "Energy E = mc² and αᵢ ≤ 1/2." {
+		t.Fatalf("rendered %q", got)
 	}
-	if e.win.buf != p.src {
-		t.Fatal("focus should stay on the source")
+	if e.win.cur.Line != 2 {
+		t.Fatalf("cursor line %d", e.win.cur.Line)
 	}
-	// live update
-	typeKeys(e, "Go- c<Esc>")
-	if !strings.Contains(p.buf.Text(), "• c") {
-		t.Fatalf("preview not updated:\n%s", p.buf.Text())
+	// read-only while rendered
+	typeKeys(e, "x")
+	if !strings.Contains(e.msg, "read-only") || r.buf.LineString(2) != "Energy E = mc² and αᵢ ≤ 1/2." {
+		t.Fatalf("rendered view editable? msg %q", e.msg)
 	}
-	// preview is read-only
-	typeKeys(e, "<C-w>lx")
-	if !strings.Contains(e.msg, "read-only") {
-		t.Fatalf("preview editable? msg %q", e.msg)
+	typeKeys(e, "<Space>mb")
+	if !strings.Contains(e.msg, "read-only") || md.Modified() {
+		t.Fatalf("formatting in the rendered view: msg %q", e.msg)
 	}
-	typeKeys(e, "<C-w>h<Space>mp")
-	if len(e.windows()) != 1 || len(e.previews) != 0 {
-		t.Fatal("preview not closed")
+	// the view follows its source
+	md.Insert(Pos{4, 0}, "$x^n$ ")
+	e.draw()
+	if got := r.buf.LineString(4); got != "xⁿ - a" {
+		t.Fatalf("not refreshed: %q", got)
+	}
+	// the cursor stays in the text when the source shrinks
+	typeKeys(e, "G")
+	md.SetText("# Title")
+	e.draw()
+	if e.win.cur.Line != 0 {
+		t.Fatalf("cursor past the end: line %d", e.win.cur.Line)
+	}
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
+	typeKeys(e, "3G")
+	// SPC f y and 'autoreload' in the view act on its file
+	os.WriteFile(path, []byte("# Disk $y^2$\n"), 0o644)
+	typeKeys(e, "<Space>fy")
+	if md.LineString(0) != "# Disk $y^2$" || r.buf.LineString(0) != "# Disk y²" {
+		t.Fatalf("reload from the view: %q / %q (%q)", md.LineString(0), r.buf.LineString(0), e.msg)
+	}
+	typeKeys(e, ":set autoreload<CR>")
+	if !e.options(md).Autoreload || strings.Contains(e.msg, "not available") {
+		t.Fatalf("autoreload from the view: %v %q", e.options(md).Autoreload, e.msg)
+	}
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
+	typeKeys(e, "3G")
+	// off again: the source is back, writable, cursor kept
+	typeKeys(e, "<Space>mr")
+	if e.win.buf != md || len(e.renders) != 0 || e.bufferAlive(r.buf) || e.win.cur.Line != 2 {
+		t.Fatalf("not back to the source: %q line %d", e.win.buf.Name, e.win.cur.Line)
+	}
+	typeKeys(e, "x")
+	if !md.Modified() {
+		t.Fatal("source not writable after rendering")
+	}
+	// only markdown
+	typeKeys(e, ":e "+filepath.Join(dir, "a.py")+"<CR><Space>mr")
+	if !strings.Contains(e.msg, "not a markdown buffer") {
+		t.Fatalf("msg %q", e.msg)
 	}
 }
 

@@ -126,7 +126,8 @@ func init() {
 		{"nboutput", 4, exNbOutput, "notebook: show full output of cell", false},
 		{"nbtype", 4, exNbType, "notebook: set cell type code|python|markdown|raw (no arg: toggle)", false},
 		{"nbexport", 4, exNbExport, "notebook: export as percent-format .py", false},
-		{"preview", 4, exPreview, "toggle markdown preview", false},
+		{"mdrender", 3, exMdRender, "markdown: toggle rendered formulas (read-only view)", false},
+		{"mdimage", 3, exMdImage, "markdown: open the image under the cursor", false},
 		{"table", 5, exTable, "toggle CSV/TSV table view [delim] [noheader]", false},
 		{"where", 5, exWhere, "table: filter rows [column] OP VALUE (no arg clears)", false},
 		{"stats", 5, exStats, "table: summary of selection or [columns|*]", true},
@@ -140,7 +141,6 @@ func init() {
 		{"freq", 4, exFreq, "table: frequency table of the column", true},
 		{"compute", 4, exCompute, "table: NAME = EXPRESSION → new column; mean(x), std(x), … are column aggregates (! replaces)", false},
 		{"transform", 5, exTransform, "table: KIND [columns] or EXPRESSION with _ for the column (! in place); KIND: z minmax pct log log10 log2 sqrt square exp abs rank cumsum diff", true},
-		{"MarkdownPreview", 2, exPreview, "toggle markdown preview", false},
 	}
 }
 
@@ -598,6 +598,9 @@ func exEdit(e *Editor, a *exArgs) error {
 	w := e.win
 	if a.arg == "" {
 		b := w.buf
+		if r := e.renders[b.ID]; r != nil {
+			b = r.src // a rendered view reloads its file (and follows it)
+		}
 		if b.Path == "" {
 			return nil
 		}
@@ -780,7 +783,7 @@ func exBdeleteAll(e *Editor, a *exArgs) error {
 			return err
 		}
 	}
-	// count what went (previews deleted with their source included; not
+	// count what went (rendered views deleted with their source included; not
 	// the [No Name] made to replace the last buffer)
 	n := 0
 	for _, b := range before {
@@ -1604,6 +1607,10 @@ func (e *Editor) setOption(item string) error {
 			target = tv.src
 			o = e.options(tv.src) // a table view reloads through its file buffer
 		}
+		if r := e.renders[b.ID]; r != nil {
+			target = r.src
+			o = e.options(r.src) // so does a rendered markdown view
+		}
 		setBool(&o.Autoreload, nil)
 		if !query && o.Autoreload && target.Path == "" {
 			e.infof("auto-reload on: works once saved to a file")
@@ -1856,9 +1863,6 @@ func (e *Editor) applyTheme(name string, transparent bool) {
 	e.cfg.Transparent = transparent
 	for _, h := range e.highlighters {
 		h.SetTheme(e.theme)
-	}
-	for _, p := range e.previews {
-		p.version = -1
 	}
 	// force a full repaint so no cell keeps the old colours
 	if e.screen != nil {

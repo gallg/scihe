@@ -151,7 +151,11 @@ are in [Data viewer](data-viewer.md).
 
 | Command | Description |
 |---------|-------------|
-| `:prev[iew]`, `:MarkdownPreview` | Toggle the live preview |
+| `:mdr[ender]` | Toggle rendered formulas (a read-only view) |
+| `:mdi[mage]` | Open the image under the cursor |
+
+The formatting keys are under `Space m`, see
+[Keymap](keymap.md#markdown-space-m).
 
 ## Git
 

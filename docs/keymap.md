@@ -165,9 +165,71 @@ See [Git](git.md).
 
 ## Markdown (`Space m`)
 
-| Key | Description |
-|-----|-------------|
-| `Space m p` | Toggle the live preview |
+Keys marked with V also work on a visual selection.
+
+| Key | | Description |
+|-----|---|-------------|
+| `Space m b` / `i` / `c` / `s` | V | Toggle bold, italic, inline code, strikethrough |
+| `Space m l` | V | Link: asks for the URL, the word or selection is the text; in a link, unlink |
+| `Space m h` | | Cycle the heading level (none, `#` … `######`) |
+| `Space m 1` … `6` | | Set the heading level (again: plain text) |
+| `Space m x` | V | Toggle a task checkbox `- [ ]` / `- [x]` |
+| `Space m -` | V | Toggle a bullet list |
+| `Space m o` | V | Toggle a numbered list (renumbers) |
+| `Space m q` | V | Toggle a `>` quote |
+| `Space m C` | V | Fence as a code block (asks for the language); in one, remove the fences |
+| `Space m t` | | Align the table under the cursor |
+| `Space m T` | | Insert or refresh a table of contents |
+| `Space m n` / `N` | | Next / previous heading |
+| `Space m r` | | Toggle rendered formulas |
+| `Space m I` | | Open the image under the cursor |
+
+The formatting keys work in markdown buffers only.
+
+**Emphasis** (`b`, `i`, `c`, `s`) works on the cursor line:
+
+- Anywhere in an emphasised span, markers included, the key acts on the
+  whole span. Bold and italic switch the span's style: on
+  `**two words**`, `Space m i` gives `*two words*` and `Space m b` gives
+  `two words`; on `*two words*`, `Space m b` gives `**two words**`. On
+  `***two words***` each key removes its own style. Inline code and
+  strikethrough are removed. In nested spans the innermost one changes.
+- Outside a span the key wraps the word under the cursor. With no word
+  there it inserts an empty pair (`****`) and starts insert mode between
+  them.
+- To emphasise several words, select them in visual mode. A selection
+  with markers outside a single span (such as all of `**a** and **b**`)
+  is refused, so spans never get crossed; select plain text, or put the
+  cursor in the span.
+- With whole lines selected (`V`) each line is toggled on its own, after
+  its list, heading or quote markers (empty items and trailing blanks,
+  a hard line break, are kept).
+- `__bold__` and `_italic_` are recognised too (not `_` inside a word, as
+  in `snake_case`).
+
+**Tables**: `Space m t` pads the cells of the table under the cursor so
+its pipes line up; the delimiter row (`:--`, `--:`, `:-:`) sets each
+column's alignment. As in GitHub markdown, write a pipe inside a cell
+as `\|`, also in code.
+
+**Links**: a URL with blanks or parentheses is written as `<url>`.
+`Space m l` in a link (not an image) leaves only its text.
+
+**Formulas**: `Space m r` shows the buffer with its formulas (`$…$` or
+`$ … $`, `$$…$$`, `\(…\)`, `\[…\]`, and math environments such as
+`\begin{equation}…\end{equation}` or `align`) as Unicode text:
+`$\alpha_i \le \frac{1}{2}$` reads `αᵢ ≤ 1/2`. The view is read-only
+and keeps the line of the cursor; `Space m r` (or `q`) goes back to the
+editable text. In the view, `Space f y` (`:e`) and `:set autoreload`
+act on the markdown file, and the view follows it. Code is left as written, and `$5 and $10` is not a
+formula. Everything stays on one line: no stacked fractions or
+matrices. `examples/formulas.md` shows what is supported.
+
+**Images**: `Space m I` opens a local image (relative to the file) or a
+URL from `![alt](path)` or `<img src="…">` with the system viewer, like
+`:nbimage` in notebooks. Only image files (`.png`, `.jpg`, `.svg`, …,
+also behind a symlink) and `http(s)` links are opened, since the system
+opener would also run a program or script.
 
 ## Toggles (`Space t`)
 

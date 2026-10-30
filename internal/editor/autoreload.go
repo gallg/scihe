@@ -10,9 +10,9 @@ import (
 
 // Auto-reload: about once a second the files of open buffers (files and
 // notebooks) are compared with the time they were last read or written.
-// A buffer with 'autoreload' (off by default), or a markdown buffer while
-// its preview is open, is reloaded when it has no unsaved changes (and,
-// for a notebook, no cell running or queued); otherwise the change is
+// A buffer with 'autoreload' (off by default) is reloaded when it has no
+// unsaved changes (and, for a notebook, no cell running or queued);
+// otherwise the change is
 // reported once per new version of the file and the buffer is left alone.
 
 const diskCheckEvery = time.Second
@@ -32,7 +32,7 @@ func (e *Editor) checkDisk() bool {
 	changed := false
 	for _, b := range e.buffers {
 		if b.Kind != buffer.KindFile && b.Kind != buffer.KindNotebook || b.Path == "" {
-			continue // listings, logs, previews
+			continue // listings, logs, rendered views
 		}
 		known, ok := e.modTimes[b.ID]
 		if !ok {
@@ -69,7 +69,7 @@ func (e *Editor) checkDisk() bool {
 			continue
 		}
 		switch {
-		case !e.options(b).Autoreload && !e.previewShown(b):
+		case !e.options(b).Autoreload:
 			st.warned = mt
 			e.infof("%s changed on disk (SPC f y reloads)", b.Name)
 		case e.modified(b):
@@ -89,24 +89,11 @@ func (e *Editor) checkDisk() bool {
 	return changed
 }
 
-// previewShown reports a markdown preview of b visible in a window.
-func (e *Editor) previewShown(b *buffer.Buffer) bool {
-	p := e.previews[b.ID]
-	if p == nil {
-		return false
-	}
-	shown := false
-	e.forWindows(func(w *Window) { shown = shown || w.buf == p.buf })
-	return shown
-}
-
 // autoreloadUnsupported says why 'autoreload' can't work in b ("" when
 // it can). Messages stay short to fit the message line.
 func (e *Editor) autoreloadUnsupported(b *buffer.Buffer) string {
-	for _, p := range e.previews {
-		if p.buf == b {
-			return "auto-reload: the preview follows its file"
-		}
+	if r := e.renders[b.ID]; r != nil {
+		b = r.src // set on its file buffer
 	}
 	if tv := e.tableFor(b); tv != nil {
 		if tv.src.Kind == buffer.KindFile {

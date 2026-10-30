@@ -62,7 +62,7 @@ func exRun(e *Editor, a *exArgs) error {
 	case "go":
 		cmd = exec.Command("go", append([]string{"run", b.Path}, args...)...)
 	case "markdown":
-		return exPreview(e, a)
+		return errors.New("markdown files can't be run (<leader>mr renders formulas)")
 	default:
 		if st, err := os.Stat(b.Path); err == nil && st.Mode()&0o111 != 0 {
 			cmd = exec.Command(b.Path, args...)

@@ -214,7 +214,7 @@ func (e *Editor) bufKind(b *buffer.Buffer) string {
 	case b.Kind == buffer.KindNotebook:
 		return "notebook"
 	case b.Kind == buffer.KindPreview:
-		return "preview"
+		return "rendered view"
 	case b.Kind == buffer.KindRepl:
 		return "log"
 	case b.Kind == buffer.KindScratch:

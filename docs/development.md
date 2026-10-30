@@ -17,7 +17,7 @@ Some tests use `python3` and `chez` when they are installed.
 
 | Package | Contents |
 |---------|----------|
-| `internal/editor` | Modes, keys, commands, pickers, git and table views |
+| `internal/editor` | Modes, keys, commands, pickers, git, table and markdown views |
 | `internal/buffer` | Text buffer and file I/O |
 | `internal/keymap` | Key parsing and the which-key tree |
 | `internal/syntax` | Syntax highlighting and themes |
@@ -25,7 +25,6 @@ Some tests use `python3` and `chez` when they are installed.
 | `internal/repl` | Form extraction and REPL sessions |
 | `internal/notebook` | `.ipynb` files, kernel and `driver.py` |
 | `internal/table` | Table parsing, statistics, expressions |
-| `internal/markdown` | Markdown preview |
 | `internal/clipboard` | System clipboard |
 
 ## Integration tests
