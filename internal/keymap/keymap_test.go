@@ -53,3 +53,20 @@ func TestTrie(t *testing.T) {
 		t.Fatal("bad binding")
 	}
 }
+
+func TestEntriesSkipEmptyGroups(t *testing.T) {
+	m := NewMap[int]()
+	m.SetGroup([]Key{"a"}, "empty")
+	m.SetGroup([]Key{"b"}, "nested empty")
+	m.SetGroup([]Key{"b", "c"}, "inner")
+	m.SetGroup([]Key{"d"}, "full")
+	m.Bind([]Key{"d", "x"}, "do x", 1)
+	got := m.Root.Entries()
+	want := []Entry{{Key: "d", Label: "+full", Group: true}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	if m.Lookup([]Key{"b"}).Live() || !m.Lookup([]Key{"d"}).Live() {
+		t.Fatal("Live")
+	}
+}

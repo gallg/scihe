@@ -142,6 +142,13 @@ func (e *Editor) execVisual(p parsed, keys []Key) {
 	count, has := p.count()
 	c := &ctx{e: e, w: w, b: b, count: count, hasCount: has, reg: p.reg, char: p.char, keys: keys}
 	cmd := p.cmd
+	if cmd.Reg != 0 {
+		if c.reg != 0 {
+			e.errorf("the clipboard keys take no register")
+			return
+		}
+		c.reg = cmd.Reg
+	}
 	if cmd.Mapping != "" {
 		e.runMapping(cmd.Mapping, c)
 		return
@@ -346,9 +353,12 @@ func vPut(keepReg bool) ActionFunc {
 			e.errorf("E21: Cannot make changes, buffer is read-only")
 			return
 		}
-		reg, ok := e.regs.Get(c.reg)
+		reg, ok := e.regs.GetPut(c.reg)
 		if !ok {
 			e.exitVisual()
+			if c.reg == regClipboard && e.clipReport() {
+				e.infof("system clipboard is empty")
+			}
 			return
 		}
 		r := e.visualRange()

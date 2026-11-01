@@ -3,6 +3,48 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.1 — 2026-11-01
+
+### Added
+- System clipboard keys, as in helix: `Space y` + motion (`Space y y`
+  for the line) and `Space Y` yank to the clipboard, `Space p` /
+  `Space P` paste from it; in visual mode `Space y` yanks the selection,
+  `Space Y` its lines, and `Space p` / `Space R` replace it (`Space P`
+  keeps the register). `y` and `p` keep using the editor's registers;
+  `<C-r>+` and `@+` no longer read the clipboard.
+- A missing clipboard tool (`wl-copy`, `xclip`, `xsel`) is reported
+  when these keys are used.
+- The rendered markdown view (`Space m r`) also draws GitHub tables
+  (aligned columns with `│`, a `─┼─` rule under the header, formulas in
+  cells), quotes (`┃`), alerts and Obsidian callouts (`> [!NOTE]` reads
+  `┃ ℹ Note`), horizontal rules and task checkboxes (`☐` / `☑`). Every
+  line of the file stays one line of the view; code and YAML front
+  matter are left as written. `examples/formulas.md` has examples of
+  each.
+
+### Changed
+- The `"+` and `"*` registers are gone: use the clipboard keys.
+  `:yank +` and `:put +` report an invalid register.
+- The python group (`Space p`) is gone, its keys moved to `Space r`:
+  `Space r f` runs the file, `Space r F` runs it with arguments,
+  `Space r k` restarts the REPL or kernel.
+- `Space m r` / `:mdrender` is labelled "rendered view" instead of
+  "rendered formulas".
+- The rendered markdown view is computed about 3x faster (fewer
+  allocations and regexp calls per line).
+
+### Fixed
+- Yanking to the clipboard failed silently when no clipboard tool
+  could be used: the text only reached an internal copy.
+- The which-key popup listed groups with no keys in the current mode
+  (visual `Space b`, `f`, `w`, ...) with a blank description. Only keys
+  that do something are shown now, and an empty group's key is unbound.
+- Pasting from the system clipboard could freeze the editor when the
+  clipboard tool hung; it now gives up after 2 seconds with an error.
+  A failing tool's own message is shown instead of "exit status 1".
+- `:registers` could cut a multi-byte character when shortening long
+  contents.
+
 ## 0.2.0 — 2026-10-30
 
 ### Added

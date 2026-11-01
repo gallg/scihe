@@ -72,7 +72,7 @@ func walk(m *keymap.Map[*Cmd], keys []Key, i int) (*keymap.Node[*Cmd], int, pars
 	n := m.Root
 	for i < len(keys) {
 		c, ok := n.Children[keys[i]]
-		if !ok {
+		if !ok || !c.Live() {
 			return n, i, parseInvalid
 		}
 		n = c
@@ -85,7 +85,7 @@ func walk(m *keymap.Map[*Cmd], keys []Key, i int) (*keymap.Node[*Cmd], int, pars
 				return n, i, parseComplete
 			}
 			// binding with children and more keys: continue if they match
-			if _, ok := n.Children[keys[i]]; !ok {
+			if c, ok := n.Children[keys[i]]; !ok || !c.Live() {
 				return n, i, parseComplete
 			}
 		}
@@ -441,6 +441,13 @@ func (e *Editor) execNormal(p parsed, keys []Key) {
 	count, has := p.count()
 	c := &ctx{e: e, w: w, b: b, count: count, hasCount: has, reg: p.reg, char: p.char, keys: keys}
 	cmd := p.cmd
+	if cmd.Reg != 0 {
+		if c.reg != 0 {
+			e.errorf("the clipboard keys take no register")
+			return
+		}
+		c.reg = cmd.Reg
+	}
 	if cmd.Mapping != "" {
 		e.runMapping(cmd.Mapping, c)
 		return

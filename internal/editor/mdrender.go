@@ -7,7 +7,7 @@ import (
 )
 
 // mdRender is a read-only view of a markdown buffer with its formulas
-// rendered (see mdmath.go). It takes the place of the source in the
+// and block elements rendered (see mdmath.go and mdblocks.go). It takes the place of the source in the
 // window, line for line, until rendering is switched off.
 type mdRender struct {
 	src     *buffer.Buffer
@@ -50,7 +50,7 @@ func exMdRender(e *Editor, a *exArgs) error {
 	e.setBuffer(w, r.buf)
 	w.alt = alt
 	e.setCursor(w, r.buf.Clamp(cur))
-	e.infof("formulas rendered (read-only): <leader>mr to edit")
+	e.infof("rendered view (read-only): <leader>mr to edit")
 	return nil
 }
 
@@ -86,7 +86,7 @@ func (e *Editor) updateRenders() {
 }
 
 func (e *Editor) refreshRender(r *mdRender) {
-	r.buf.SetText(renderMath(r.src.Text()))
+	r.buf.SetText(renderMarkdown(r.src.Text()))
 	r.version = r.src.Version
 	// the source may have shrunk (a reload)
 	e.forWindows(func(w *Window) {

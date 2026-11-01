@@ -13,6 +13,25 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space :` | Command history |
 | `Space ?` | All key bindings |
 
+## Clipboard
+
+`y` and `p` use the editor's own registers. The system clipboard has
+its own keys, as in helix:
+
+| Key | Description |
+|-----|-------------|
+| `Space y` + motion | Yank to the clipboard, e.g. `Space y iw`; `Space y y` yanks the line |
+| `Space Y` | Yank the line (with a count, lines) to the clipboard |
+| `Space p`, `Space P` | Paste the clipboard after, before the cursor |
+| `Space y` (visual) | Yank the selection to the clipboard |
+| `Space Y` (visual) | Yank the selected lines to the clipboard, as `Y` does |
+| `Space p`, `Space R` (visual) | Replace the selection with the clipboard |
+| `Space P` (visual) | Replace the selection, keeping the register `p` pastes |
+
+The clipboard is reached through `wl-copy`/`wl-paste`, `xclip`, `xsel`
+or `pbcopy`/`pbpaste`. Without one of them these keys show an error; a
+paste that gets no answer within 2 seconds gives up with an error.
+
 ## File (`Space f`)
 
 | Key | Description |
@@ -82,16 +101,11 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space r l` | Show the REPL log |
 | `Space r x` | Clear inline results |
 | `Space r q` | Quit the REPL |
+| `Space r k` | Restart the REPL or kernel |
+| `Space r f` | Run the file (`:run`) |
+| `Space r F` | Run the file with arguments |
 
 See [REPLs](repls.md).
-
-## Python (`Space p`)
-
-| Key | Description |
-|-----|-------------|
-| `Space p r` | Run the file |
-| `Space p R` | Run the file with arguments |
-| `Space p k` | Restart the kernel or REPL |
 
 ## Notebook (`Space n`)
 
@@ -181,7 +195,7 @@ Keys marked with V also work on a visual selection.
 | `Space m t` | | Align the table under the cursor |
 | `Space m T` | | Insert or refresh a table of contents |
 | `Space m n` / `N` | | Next / previous heading |
-| `Space m r` | | Toggle rendered formulas |
+| `Space m r` | | Toggle the rendered view (formulas, tables, alerts, …) |
 | `Space m I` | | Open the image under the cursor |
 
 The formatting keys work in markdown buffers only.
@@ -215,15 +229,33 @@ as `\|`, also in code.
 **Links**: a URL with blanks or parentheses is written as `<url>`.
 `Space m l` in a link (not an image) leaves only its text.
 
-**Formulas**: `Space m r` shows the buffer with its formulas (`$…$` or
-`$ … $`, `$$…$$`, `\(…\)`, `\[…\]`, and math environments such as
-`\begin{equation}…\end{equation}` or `align`) as Unicode text:
-`$\alpha_i \le \frac{1}{2}$` reads `αᵢ ≤ 1/2`. The view is read-only
-and keeps the line of the cursor; `Space m r` (or `q`) goes back to the
+**Rendered view**: `Space m r` shows the buffer rendered, read-only.
+It keeps the line of the cursor; `Space m r` (or `q`) goes back to the
 editable text. In the view, `Space f y` (`:e`) and `:set autoreload`
-act on the markdown file, and the view follows it. Code is left as written, and `$5 and $10` is not a
-formula. Everything stays on one line: no stacked fractions or
-matrices. `examples/formulas.md` shows what is supported.
+act on the markdown file, and the view follows it. Every line of the
+file stays one line of the view, so elements get no top or bottom
+borders. Code and YAML front matter are left as written.
+`examples/formulas.md` has an example of everything below.
+
+- **Formulas** (`$…$` or `$ … $`, `$$…$$`, `\(…\)`, `\[…\]`, and math
+  environments such as `\begin{equation}…\end{equation}` or `align`)
+  read as Unicode text: `$\alpha_i \le \frac{1}{2}$` reads `αᵢ ≤ 1/2`.
+  `$5 and $10` is not a formula. Everything stays on one line: no
+  stacked fractions or matrices. `examples/formulas.md` shows what is
+  supported.
+- **Tables** (GitHub markdown: a header row, then a delimiter row with
+  as many cells) are aligned with `│` between the cells and a `─┼─`
+  rule under the header, following the column alignment. Formulas in
+  cells are rendered; write a pipe in a cell as `\|`, also in a formula
+  (`$\|x\|$`). A table ends at a blank line.
+- **Quotes** (`> text`) read `┃ text`, one bar per level.
+- **Alerts**, the GitHub ones (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
+  `[!WARNING]`, `[!CAUTION]`) and Obsidian callouts (`> [!tip]- Title`),
+  get a title line: `> [!WARNING]` reads `┃ ⚠ Warning`.
+- **Horizontal rules** (`---`, `***`, `___`) read as a line of `─`.
+  `---` under a line of text underlines a heading and is left as is.
+- **Task items** read `☐ todo` and `☑ done` (`1. ☑ first` in a
+  numbered list).
 
 **Images**: `Space m I` opens a local image (relative to the file) or a
 URL from `![alt](path)` or `<img src="…">` with the system viewer, like

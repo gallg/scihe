@@ -20,6 +20,7 @@ Scihe sends code to a running REPL and shows the result after the code:
 | `Space r x` | Clear the inline results |
 | `Space r i` | Interrupt |
 | `Space r q` | Quit the REPL |
+| `Space r k` | Restart the REPL or kernel |
 | `:repl restart` | Start a fresh REPL |
 
 ## Languages

@@ -29,6 +29,9 @@ Replacements support `&`, `\0`–`\9`, `\n`, `\r` and `\u` `\l` `\U` `\L`
 - **Notebooks** need no Jupyter install, see [Notebooks](notebooks.md).
 - **`q` closes read-only buffers** (help, output, logs, the rendered
   markdown view, the buffer list) instead of recording a macro.
+- **The clipboard has its own keys, as in helix.** `Space y` yanks
+  to the system clipboard and `Space p` pastes from it; `"+` and `"*`
+  are not registers. See [Keymap](keymap.md#clipboard).
 - **Deletes can leave the register alone.** With
   `delete_to_register = false`, `d`, `c`, `x`, … no longer fill the
   register `p` pastes, see

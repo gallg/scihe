@@ -133,7 +133,11 @@ func (e *Editor) applyOperator(c *ctx, op Operator, r opRange) {
 		} else {
 			w.cur = r.start
 		}
-		if n := r.end.Line - r.start.Line + 1; n > 2 {
+		if c.reg == regClipboard {
+			if e.clipReport() {
+				e.infof("yanked to system clipboard")
+			}
+		} else if n := r.end.Line - r.start.Line + 1; n > 2 {
 			e.infof("%d lines yanked", n)
 		}
 	case OpDelete:

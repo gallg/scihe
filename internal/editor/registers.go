@@ -21,11 +21,17 @@ type Register struct {
 	Type RegType
 }
 
+// regClipboard is the system clipboard. It cannot be named with "x:
+// only the <leader>y / <leader>p keys (as in helix) reach it.
+const regClipboard = '+'
+
+// the system clipboard helpers (replaced in tests)
+var clipCopy, clipPaste = clipboard.Copy, clipboard.Paste
+
 // Registers holds all named and special registers.
 type Registers struct {
-	m         map[rune]Register
-	clipFall  Register // used when no system clipboard tool exists
-	lastClipE error
+	m       map[rune]Register
+	clipErr error // result of the last clipboard access
 	// noDeleteReg: deletes without a named register store nothing
 	// (delete_to_register = false in the config)
 	noDeleteReg bool
@@ -36,7 +42,7 @@ func newRegisters() *Registers {
 }
 
 func validRegister(r rune) bool {
-	return r == '"' || r == '-' || r == '_' || r == '+' || r == '*' || r == '/' || r == ':' || r == '.' || r == '%' ||
+	return r == '"' || r == '-' || r == '_' || r == '/' || r == ':' || r == '.' || r == '%' ||
 		(r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
 }
 
@@ -45,21 +51,30 @@ func (rs *Registers) Get(r rune) (Register, bool) {
 	switch r {
 	case 0:
 		r = '"'
-	case '+', '*':
-		if s, err := clipboard.Paste(); err == nil {
-			t := RegChar
-			if strings.HasSuffix(s, "\n") {
-				t = RegLine
-			}
-			return Register{Text: s, Type: t}, true
-		}
-		return rs.clipFall, rs.clipFall.Text != ""
 	}
 	if r >= 'A' && r <= 'Z' {
 		r = r - 'A' + 'a'
 	}
 	reg, ok := rs.m[r]
 	return reg, ok
+}
+
+// GetPut returns what a put of register r inserts: the system clipboard
+// for regClipboard (read nowhere else, so <C-r>+ and @+ do nothing).
+func (rs *Registers) GetPut(r rune) (Register, bool) {
+	if r != regClipboard {
+		return rs.Get(r)
+	}
+	s, err := clipPaste()
+	rs.clipErr = err
+	if err != nil || s == "" {
+		return Register{}, false
+	}
+	t := RegChar
+	if strings.HasSuffix(s, "\n") {
+		t = RegLine
+	}
+	return Register{Text: s, Type: t}, true
 }
 
 // SetSpecial sets read-only registers (/ : . %).
@@ -104,9 +119,23 @@ func (rs *Registers) Delete(r rune, reg Register) {
 
 // linkUnnamed makes the unnamed register mirror a named one after a write.
 func (rs *Registers) linkUnnamed(r rune) {
-	if r != '+' && r != '*' {
+	if r != regClipboard {
 		rs.m['"'] = rs.m[lower(r)]
 	}
+}
+
+// clipReport tells whether the last clipboard access worked, showing
+// the error if it did not.
+func (e *Editor) clipReport() bool {
+	switch err := e.regs.clipErr; {
+	case err == clipboard.ErrUnavailable:
+		e.errorf("no system clipboard: install wl-copy, xclip or xsel")
+	case err != nil:
+		e.errorf("clipboard: %v", err)
+	default:
+		return true
+	}
+	return false
 }
 
 func lower(r rune) rune {
@@ -121,10 +150,9 @@ func (rs *Registers) store(r rune, reg Register) bool {
 	switch {
 	case r == 0 || r == '"':
 		return false
-	case r == '+' || r == '*':
-		rs.clipFall = reg
-		rs.lastClipE = clipboard.Copy(reg.Text)
-		rs.m['"'] = reg
+	case r == regClipboard:
+		// the internal registers are left alone, as in helix
+		rs.clipErr = clipCopy(reg.Text)
 		return true
 	case r >= 'A' && r <= 'Z':
 		lr := lower(r)

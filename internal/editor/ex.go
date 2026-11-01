@@ -126,7 +126,7 @@ func init() {
 		{"nboutput", 4, exNbOutput, "notebook: show full output of cell", false},
 		{"nbtype", 4, exNbType, "notebook: set cell type code|python|markdown|raw (no arg: toggle)", false},
 		{"nbexport", 4, exNbExport, "notebook: export as percent-format .py", false},
-		{"mdrender", 3, exMdRender, "markdown: toggle rendered formulas (read-only view)", false},
+		{"mdrender", 3, exMdRender, "markdown: toggle the rendered view (read-only)", false},
 		{"mdimage", 3, exMdImage, "markdown: open the image under the cursor", false},
 		{"table", 5, exTable, "toggle CSV/TSV table view [delim] [noheader]", false},
 		{"where", 5, exWhere, "table: filter rows [column] OP VALUE (no arg clears)", false},
@@ -1225,18 +1225,24 @@ func (e *Editor) countArg(a *exArgs) {
 	}
 }
 
-func regArg(a *exArgs) rune {
+func regArg(a *exArgs) (rune, error) {
 	s := strings.TrimSpace(a.arg)
 	if s != "" && !unicode.IsDigit(rune(s[0])) {
 		r := rune(s[0])
+		if !validRegister(r) {
+			return 0, fmt.Errorf("E354: Invalid register name: '%c'", r)
+		}
 		a.arg = strings.TrimSpace(s[1:])
-		return r
+		return r, nil
 	}
-	return 0
+	return 0, nil
 }
 
 func exDelete(e *Editor, a *exArgs) error {
-	reg := regArg(a)
+	reg, err := regArg(a)
+	if err != nil {
+		return err
+	}
 	e.countArg(a)
 	b := e.win.buf
 	if b.ReadOnly {
@@ -1249,7 +1255,10 @@ func exDelete(e *Editor, a *exArgs) error {
 }
 
 func exYank(e *Editor, a *exArgs) error {
-	reg := regArg(a)
+	reg, err := regArg(a)
+	if err != nil {
+		return err
+	}
 	e.countArg(a)
 	b := e.win.buf
 	r := opRange{start: Pos{a.from, 0}, end: Pos{a.to, b.LineLen(a.to)}, linewise: true}
@@ -1262,6 +1271,9 @@ func exPut(e *Editor, a *exArgs) error {
 	var reg rune
 	if s := strings.TrimSpace(a.arg); s != "" {
 		reg = rune(s[0])
+		if !validRegister(reg) {
+			return fmt.Errorf("E354: Invalid register name: '%c'", reg)
+		}
 	}
 	r, ok := e.regs.Get(reg)
 	if !ok {
@@ -1689,8 +1701,8 @@ func exRegisters(e *Editor, a *exArgs) error {
 			t = "b"
 		}
 		txt := strings.ReplaceAll(reg.Text, "\n", "^J")
-		if len(txt) > 70 {
-			txt = txt[:70]
+		if rs := []rune(txt); len(rs) > 70 {
+			txt = string(rs[:70])
 		}
 		lines = append(lines, fmt.Sprintf("  %s  \"%c   %s", t, r, txt))
 	}

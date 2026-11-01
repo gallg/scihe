@@ -743,7 +743,9 @@ func (e *Editor) drawCmdline(sw, sh int) {
 }
 
 // maxKeyLabel is the widest key label the which-key popup shows; labels
-// are kept within it (TestKeyLabelsFitPopup) so none is cut off.
+// are kept within it (TestKeyLabelsFitPopup) so none is cut off. Write
+// new labels well under it, about 24 columns: the widest label sets the
+// width of every column of the popup.
 const maxKeyLabel = 32
 
 func (e *Editor) drawWhichKey(sw, sh int) {

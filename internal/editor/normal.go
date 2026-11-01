@@ -15,6 +15,9 @@ import (
 )
 
 // setupKeymaps builds the default key bindings for every mode.
+//
+// Keep labels short: at most maxKeyLabel (32) columns, aim for about 24
+// (see setupLeader).
 func (e *Editor) setupKeymaps() {
 	e.normalMap = keymap.NewMap[*Cmd]()
 	e.visualMap = keymap.NewMap[*Cmd]()
@@ -524,9 +527,13 @@ func (e *Editor) joinLines(w *Window, count int, spaces bool) {
 }
 
 func (e *Editor) putReg(c *ctx, after, cursorAfter bool) {
-	reg, ok := e.regs.Get(c.reg)
+	reg, ok := e.regs.GetPut(c.reg)
 	if !ok {
-		if c.reg != 0 {
+		if c.reg == regClipboard {
+			if e.clipReport() {
+				e.infof("system clipboard is empty")
+			}
+		} else if c.reg != 0 {
 			e.errorf("E353: Nothing in register %c", c.reg)
 		}
 		return

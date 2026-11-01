@@ -249,12 +249,13 @@ func (m *Map[T]) walk(keys []Key, create bool) *Node[T] {
 	return n
 }
 
-// Bind sets the binding for keys.
+// Bind sets the binding for keys. The label is shown by which-key:
+// keep it short (the editor allows 32 columns, aim for about 24).
 func (m *Map[T]) Bind(keys []Key, label string, v T) {
 	m.walk(keys, true).Binding = &Binding[T]{Label: label, Value: v}
 }
 
-// SetGroup names the prefix keys for which-key.
+// SetGroup names the prefix keys for which-key (short, as Bind labels).
 func (m *Map[T]) SetGroup(keys []Key, name string) {
 	m.walk(keys, true).Group = name
 }
@@ -271,18 +272,37 @@ type Entry struct {
 	Group bool
 }
 
-// Entries returns the children of n sorted for display.
+// Live reports whether a binding can be reached from n. A group named
+// in a map with nothing bound under it is not live: which-key leaves it
+// out and the editor treats its key as unbound.
+func (n *Node[T]) Live() bool {
+	if n.Binding != nil {
+		return true
+	}
+	for _, c := range n.Children {
+		if c.Live() {
+			return true
+		}
+	}
+	return false
+}
+
+// Entries returns the live children of n sorted for display: only keys
+// that do something are shown.
 func (n *Node[T]) Entries() []Entry {
 	var out []Entry
 	for k, c := range n.Children {
+		if !c.Live() {
+			continue
+		}
 		e := Entry{Key: k}
-		if len(c.Children) > 0 && c.Binding == nil {
+		if c.Binding == nil {
 			e.Group = true
 			e.Label = "+" + c.Group
 			if c.Group == "" {
 				e.Label = "+prefix"
 			}
-		} else if c.Binding != nil {
+		} else {
 			e.Label = c.Binding.Label
 		}
 		out = append(out, e)

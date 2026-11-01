@@ -58,7 +58,9 @@ Other normal-mode keys:
 | `"a`–`"z` | Named registers (uppercase appends) |
 | `"0`–`"9` | Yank history |
 | `"_` | Black hole |
-| `"+` | System clipboard |
+
+The system clipboard is not a register: yank to it with `Space y`
+and paste from it with `Space p`, see [Keymap](keymap.md#clipboard).
 
 Deleted text also goes to the register `p` pastes, as in vim. To keep
 your last yank there instead, set `delete_to_register = false` in the
@@ -94,7 +96,9 @@ Patterns are Go regular expressions, see
 ## Which-key
 
 Press `Space` and wait, or wait after a prefix such as `g`, `z` or
-`<C-w>`. A popup lists the keys you can press next. The delay is set by
+`<C-w>`. A popup lists the keys you can press next; it only shows keys
+that do something in the current mode, so the visual `Space` popup is
+shorter than the normal one. The delay is set by
 `whichkey_delay_ms` in the [configuration](configuration.md).
 
 ## Windows

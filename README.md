@@ -19,6 +19,8 @@ manage: just use your own terminal multiplexer.
 
 - **Editing** — vim normal/insert/visual modes, counts, operators, text
   objects, registers, macros, marks, undo/redo, splits, mouse
+- **System clipboard** — helix-style keys: `Space y` yanks to it,
+  `Space p` pastes from it; `y` and `p` stay in the editor
 - **Fuzzy finders** — files, buffers, project grep, themes, commands
 - **Syntax highlighting** — ~300 languages, ~70 themes (chroma)
 - **Which-key popups** — press `Space` (or wait after any prefix) to see
@@ -29,7 +31,8 @@ manage: just use your own terminal multiplexer.
 - **Data viewer** — CSV/TSV as an aligned table: sort, filter, edit,
   mark cells, compute statistics or transform your data with built-in or custom functions.
 - **Markdown** — formatting keys (emphasis, links, headings, lists, tables,
-  table of contents), formulas rendered as Unicode, images opened in your viewer.
+  table of contents), a rendered view (formulas as Unicode, tables, alerts,
+  quotes, rules, task checkboxes), images opened in your viewer.
 - **Git** — built-in, simple to use git support.
 - **File explorer** — dired-style: mark, copy, paste, move, rename, delete, create.
 - **Auto-reload** — files changed on disk are detected as you work;

@@ -77,6 +77,7 @@ type Cmd struct {
 	KeepWant  bool // vertical motion: keep desired column
 	EOL       bool // motion sets the desired column to end of line ($)
 	NoUndo    bool // action manages undo itself (u, <C-r>)
+	Reg       rune // register the command always uses (clipboard keys)
 	// Mapping replays keys or runs an ex command (from config).
 	Mapping string
 }

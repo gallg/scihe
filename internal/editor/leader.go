@@ -7,6 +7,10 @@ import (
 )
 
 // setupLeader installs the <leader> bindings shown by which-key.
+//
+// Keep labels short: at most maxKeyLabel (32) columns, aim for about 24.
+// Longer ones make the popup's columns wide and get cut on narrow
+// screens; TestKeyLabelsFitPopup fails over the limit.
 func (e *Editor) setupLeader() {
 	L := e.leader
 	group := func(keys, name string) {
@@ -104,18 +108,36 @@ func (e *Editor) setupLeader() {
 	n("<leader>sm", "marks", func(c *ctx) { c.e.execEx("marks") })
 	n("<leader>sR", "registers", func(c *ctx) { c.e.execEx("registers") })
 
-	group("<leader>p", "python")
-	ex("<leader>pr", "run file", "run")
-	n("<leader>pR", "run file with args", func(c *ctx) {
+	// system clipboard, as in helix: y and p use the internal registers,
+	// <leader>y / <leader>p the clipboard
+	clip := func(cmd *Cmd) *Cmd {
+		cmd.Reg = regClipboard
+		return cmd
+	}
+	e.normalMap.Bind(keymap.Parse("<leader>y", L), "yank {motion} to clipboard", clip(operator(OpYank)))
+	e.normalMap.Bind(keymap.Parse("<leader>Y", L), "yank line to clipboard",
+		clip(action(func(c *ctx) { c.e.feedOperatorLine(c, OpYank) })))
+	e.normalMap.Bind(keymap.Parse("<leader>p", L), "paste clipboard after",
+		clip(change(func(c *ctx) { c.e.putReg(c, true, false) })))
+	e.normalMap.Bind(keymap.Parse("<leader>P", L), "paste clipboard before",
+		clip(change(func(c *ctx) { c.e.putReg(c, false, false) })))
+	e.visualMap.Bind(keymap.Parse("<leader>y", L), "yank to clipboard", clip(operator(OpYank)))
+	e.visualMap.Bind(keymap.Parse("<leader>Y", L), "yank lines to clipboard",
+		clip(action(func(c *ctx) { c.e.visualLinesOp(c, OpYank) })))
+	e.visualMap.Bind(keymap.Parse("<leader>p", L), "replace with clipboard", clip(action(vPut(false))))
+	e.visualMap.Bind(keymap.Parse("<leader>P", L), "replace, keep register", clip(action(vPut(true))))
+	e.visualMap.Bind(keymap.Parse("<leader>R", L), "replace with clipboard", clip(action(vPut(false))))
+
+	group("<leader>r", "repl / eval")
+	ex("<leader>rf", "run file", "run")
+	n("<leader>rF", "run file with args", func(c *ctx) {
 		c.e.prompt("run args: ", "", func(s string, ok bool) {
 			if ok {
 				c.e.execEx("run " + s)
 			}
 		})
 	})
-	ex("<leader>pk", "restart kernel / REPL", "repl restart")
-
-	group("<leader>r", "repl / eval")
+	ex("<leader>rk", "restart REPL / kernel", "repl restart")
 	n("<leader>rr", "eval form / line", func(c *ctx) { c.e.evalCurrent(false) })
 	n("<leader>rt", "eval top-level form / cell", func(c *ctx) { c.e.evalCurrent(true) })
 	n("<leader>rb", "eval buffer", func(c *ctx) { c.e.evalBuffer() })
@@ -192,7 +214,7 @@ func (e *Editor) setupLeader() {
 	n("<leader>dT", "transform column (:transform)", func(c *ctx) { c.e.startCmdline(':', "transform ") })
 
 	group("<leader>m", "markdown")
-	ex("<leader>mr", "toggle rendered formulas", "mdrender")
+	ex("<leader>mr", "toggle rendered view", "mdrender")
 	ex("<leader>mI", "open image under cursor", "mdimage")
 	for _, k := range []struct{ key, label, marker string }{
 		{"b", "bold", "**"}, {"i", "italic", "*"}, {"c", "inline code", "`"}, {"s", "strikethrough", "~~"},

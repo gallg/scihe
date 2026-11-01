@@ -4,9 +4,11 @@ package clipboard
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -58,12 +60,31 @@ func Copy(text string) error {
 	}
 }
 
+// pasteTimeout bounds a read: a helper waiting on an unresponsive
+// selection owner would otherwise freeze the editor (a var for tests).
+var pasteTimeout = 2 * time.Second
+
 // Paste reads the system clipboard.
 func Paste() (string, error) {
 	t, ok := pick()
 	if !ok {
 		return "", ErrUnavailable
 	}
-	out, err := exec.Command(t.paste[0], t.paste[1:]...).Output()
+	ctx, cancel := context.WithTimeout(context.Background(), pasteTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, t.paste[0], t.paste[1:]...)
+	cmd.WaitDelay = 100 * time.Millisecond // a child holding stdout open
+	out, err := cmd.Output()
+	if ctx.Err() != nil {
+		return "", errors.New(t.paste[0] + " timed out")
+	}
+	// the helper's own message ("Nothing is copied") says more than
+	// "exit status 1"
+	var ee *exec.ExitError
+	if errors.As(err, &ee) {
+		if msg := strings.TrimSpace(string(ee.Stderr)); msg != "" {
+			return "", errors.New(t.paste[0] + ": " + msg)
+		}
+	}
 	return string(out), err
 }

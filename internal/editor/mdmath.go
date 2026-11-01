@@ -29,6 +29,9 @@ func renderMath(src string) string {
 // mathLine renders the formulas of one line; closer is the delimiter of
 // a display block still open from an earlier line (returned updated).
 func mathLine(line, closer string) (string, string) {
+	if closer == "" && !strings.ContainsAny(line, `$\`) {
+		return line, "" // no formula can start here (most lines)
+	}
 	var sb strings.Builder
 	rs := []rune(line)
 	i := 0
@@ -132,8 +135,16 @@ func mathEnvAt(rs []rune, i int) string {
 	return ""
 }
 
+// hasAt reports whether s starts at rs[i] (called per character: no
+// allocations).
 func hasAt(rs []rune, i int, s string) bool {
-	return strings.HasPrefix(string(rs[i:min(i+len(s), len(rs))]), s)
+	for _, c := range s {
+		if i >= len(rs) || rs[i] != c {
+			return false
+		}
+		i++
+	}
+	return true
 }
 
 // findDelim returns the index of delim from i on (len(rs), false when

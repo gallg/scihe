@@ -1,7 +1,10 @@
-# Formula rendering test
+# Markdown rendering test
 
 Open this file in scihe and press `Space m r` to toggle the rendered view
 (read-only). Press `Space m r` or `q` to go back to the text.
+
+Sections 1–6 are formulas; sections 7–12 are tables, quotes, alerts,
+rules and task items. Every line of the file stays one line of the view.
 
 ## 1. Inline formulas
 
@@ -85,3 +88,164 @@ $$ \alpha $$ inside a ~~~ fence stays too
 - Superscript inside a superscript: $e^{x^2}$
 - Matrices: $\begin{pmatrix} a & b \\ c & d \end{pmatrix}$
 - Unknown commands are kept: $\foo{x} + \operatorname{argmax}_x f(x)$
+
+## 7. Tables
+
+Column alignment from the delimiter row (left, right, center):
+
+| Model    | Accuracy | Learning rate |
+|:---------|---------:|:-------------:|
+| baseline |     0.81 |   $10^{-3}$   |
+| ours     | **0.93** | $\frac{1}{2}$ |
+| tuned    |    0.951 | $\eta_0$      |
+
+Without outer pipes, unaligned in the source:
+
+Symbol | Meaning
+--- | ---
+$\mu$ | mean
+$\sigma^2$ | variance
+$\rho_{XY}$ | correlation
+
+A pipe in a cell is written `\|`, also in a formula:
+
+| Expression | Value |
+|------------|-------|
+| a \| b     | or    |
+| $\|x\|$    | norm  |
+
+Missing cells are left empty, extra cells are dropped:
+
+| a | b | c |
+|---|---|---|
+| 1 |
+| 1 | 2 | 3 | 4 |
+
+Wide characters keep the columns aligned:
+
+| City  | Name      |
+|-------|-----------|
+| Tokyo | 東京      |
+| Paris | Paris     |
+
+A list item ends a table:
+
+| Step | Done |
+|------|------|
+| 1    | yes  |
+- not a row
+
+## 8. Not tables (stay as written)
+
+No delimiter row:
+
+| a | b |
+| c | d |
+
+Cell counts differ:
+
+| a | b |
+|---|
+
+A heading with a pipe:
+
+# a | b
+|---|---|
+
+Indented code:
+
+    | a |
+    |---|
+
+## 9. Quotes
+
+> A plain quote with a formula: $E = mc^2$.
+> It keeps going on this line.
+>
+> > A nested quote.
+> > > And one more level.
+
+> A display formula inside a quote:
+> $$
+> \sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+> $$
+
+## 10. Alerts and callouts
+
+> [!NOTE]
+> Useful information that users should know.
+
+> [!TIP]
+> Helpful advice for doing things better.
+
+> [!IMPORTANT]
+> Key information users need to know.
+
+> [!WARNING]
+> Urgent info that needs immediate attention: memory grows with $n^2$.
+
+> [!CAUTION]
+> Advises about risks or negative outcomes.
+
+Obsidian callouts, lowercase, with a title and a fold marker:
+
+> [!tip]- Read this first
+> The title replaces the type name.
+
+> [!example]
+> Unknown types get a generic marker.
+
+Only the first line of a quote opens an alert:
+
+> Some text
+> [!NOTE] stays as written here.
+
+## 11. Horizontal rules
+
+Three dashes:
+
+---
+
+Three stars, spaced:
+
+* * *
+
+Underscores:
+
+___
+
+Not rules:
+
+Setext heading (the dashes underline this line)
+---
+
+Dashes indented with a tab are code, not a rule:
+
+	---
+
+## 12. Task lists
+
+- [ ] write the introduction
+- [x] collect the data
+  - [ ] nested, open
+  * [X] nested, done (capital X)
+1. [ ] numbered, open
+2. [x] numbered, done
+- [ ]
+
+> - [x] a task inside a quote, with $x^2$
+
+A plain list stays as written:
+
+- item
+- another item
+1. first
+2. second
+
+```markdown
+- [ ] inside a code block nothing is rendered
+| a |
+|---|
+> [!NOTE]
+---
+```
