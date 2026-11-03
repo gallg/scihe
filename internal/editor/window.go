@@ -18,9 +18,15 @@ type Window struct {
 	buf  *buffer.Buffer
 	cur  buffer.Pos
 	want int // desired display column for vertical moves; -1 = end of line
-	top  int // first visible line
-	skip int // wrapped rows of the top line scrolled past (very long lines)
-	left int // first visible display column
+	// rowWant is the column within a screen row kept by row moves in a
+	// wrapped window, while the cursor stays at rowAt (where they left it)
+	rowWant int
+	rowAt   buffer.Pos
+	rowBuf  *buffer.Buffer
+	rowVer  int
+	top     int // first visible line
+	skip    int // wrapped rows of the top line scrolled past (very long lines)
+	left    int // first visible display column
 	// pinTop keeps an explicitly chosen top line (zt/zz/zb) for one redraw
 	pinTop bool
 	// screen position of the cursor from the last draw (-1 if hidden)

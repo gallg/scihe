@@ -195,7 +195,11 @@ Keys marked with V also work on a visual selection.
 | `Space m t` | | Align the table under the cursor |
 | `Space m T` | | Insert or refresh a table of contents |
 | `Space m n` / `N` | | Next / previous heading |
-| `Space m r` | | Toggle the rendered view (formulas, tables, alerts, …) |
+| `Space m ^` / `_` | V | Superscript / subscript: `mc2` → `mc²`, `H2O` → `H₂O`; again: back |
+| `Space m f` | V | Inline formula: `$…$` around the word or selection, or an empty pair |
+| `Space m F` | V | Display formula: a `$$` block below the line, or around the selected lines |
+| `Space m g` | | Insert a Greek letter or symbol by name (`Ctrl-k` in insert mode) |
+| `Space m r` | | Toggle the rendered view (a laid-out page with formulas) |
 | `Space m I` | | Open the image under the cursor |
 
 The formatting keys work in markdown buffers only.
@@ -229,36 +233,81 @@ as `\|`, also in code.
 **Links**: a URL with blanks or parentheses is written as `<url>`.
 `Space m l` in a link (not an image) leaves only its text.
 
-**Rendered view**: `Space m r` shows the buffer rendered, read-only.
-It keeps the line of the cursor; `Space m r` (or `q`) goes back to the
-editable text. In the view, `Space f y` (`:e`) and `:set autoreload`
-act on the markdown file, and the view follows it. Every line of the
-file stays one line of the view, so elements get no top or bottom
-borders. Code and YAML front matter are left as written.
+**Scientific text**: `Space m ^` and `Space m _` raise or lower the
+selection, else the number under the cursor (with its sign: `x-12` →
+`x⁻¹²`) or the character: they become Unicode characters (`²`, `₂`,
+`ⁿ`, …), and the same key turns them back; `Space m ^` on a subscript
+raises it, `Space m _` on a superscript lowers it. Text with no Unicode form
+(`q`, most capitals) is put in `<sup>…</sup>` or `<sub>…</sub>`, and
+the key on such a span removes the tags. `Space m g` (or `Ctrl-k` in
+insert mode, in any buffer) opens a picker of Greek letters,
+operators, relations, arrows, sets and super- and subscript
+characters: type a name (`alpha`, `leq`, `infinity`, `superscript 2`)
+and `Enter` inserts the symbol at the cursor.
+
+**Rendered view**: `Space m r` shows the buffer laid out as a page,
+read-only, on the line of the cursor; `Space m r` (or `q`) goes back to
+the editable text, on the line shown. The view shares the options of
+its file: with `wrap` on (`Space t w`, in either) paragraphs, lists,
+quotes and tables fit the window and follow it when it is resized;
+with `wrap` off every line keeps its own row and the view scrolls
+sideways. Line numbers are those of the file. In the view, `Space f y`
+(`:e`) and `:set autoreload` act on the markdown file, and the view
+follows it. Code and YAML front matter are left as written.
 `examples/formulas.md` has an example of everything below.
 
-- **Formulas** (`$…$` or `$ … $`, `$$…$$`, `\(…\)`, `\[…\]`, and math
-  environments such as `\begin{equation}…\end{equation}` or `align`)
-  read as Unicode text: `$\alpha_i \le \frac{1}{2}$` reads `αᵢ ≤ 1/2`.
-  `$5 and $10` is not a formula. Everything stays on one line: no
-  stacked fractions or matrices. `examples/formulas.md` shows what is
-  supported.
+- **Text**: emphasis, inline code, strikethrough and links show their
+  style without markers, headings stand out (levels 1 and 2
+  underlined), `<sup>`, `<sub>`, Unicode super- and subscripts and
+  footnote marks (`[^1]`) are raised or lowered a row, in the size of
+  the text. HTML comments are hidden; images read `▣ alt`.
+- **Formulas** (`$…$` or `$ … $` inline, `$$…$$` display) are laid out
+  in two dimensions: fractions stacked over a rule, scripts raised and
+  lowered, limits above and below `∑` and `lim`, integrals and brackets
+  as tall as what they enclose, roots with their bar, matrices, cases
+  and stacked rows. Display formulas are centred on their own rows;
+  inline ones sit in the text. Scripts are set compactly, as TeX sets
+  them smaller: what is inside a script stays on one row (`e` with
+  `−(x − μ)²/(2σ²)` above it) and simple scripts inside a fraction are
+  Unicode characters (`2σ²`). Plain brackets grow only around
+  fractions, matrices and limits. A formula wider than the window is
+  written on one line instead (`(a + b)/2`, `xⁿ⁺¹`). `$5 and $10` is
+  not a formula.
+- **Formula syntax** is the LibreOffice Math one: `a over b`,
+  `frac{a}{b}`, `x^2`, `x_i`, `x sup 2 sub i`, `sqrt{x}`, `nroot{3}{x}`,
+  `alpha` or `%alpha` (`%DELTA` for Δ), `sum from{k=1} to{n}`,
+  `int from a to b`, `lim from{x -> 0}`, `left( … right)` (also
+  `left lbrace … right none`), `abs{x}`, `norm{v}`, `binom{n}{k}`,
+  `matrix{a # b ## c # d}`, `cases{x # x >= 0 ## -x # x < 0}`,
+  `stack{a # b}`, `hat x`, `bar x`, `vec v`, `bb R`, `cal L`, `setR`,
+  `"text"`, `newline`, `~` (a blank), and `<=`, `>=`, `<>`, `->`, `=>`,
+  `<=>`, `+-`, `times`, `cdot`, `in`, `union`, `forall`, `sim`,
+  `infinity` …. Braces group; `\{` writes a brace. A blank written
+  between two variables is kept (`x dx`, `m v^2`). Unicode symbols can
+  be typed directly (`x²`, `α`, `≤`). LaTeX commands (`\frac`, `\alpha`)
+  and delimiters (`\(…\)`, `\[…\]`, `\begin{equation}`) are not read.
 - **Tables** (GitHub markdown: a header row, then a delimiter row with
-  as many cells) are aligned with `│` between the cells and a `─┼─`
-  rule under the header, following the column alignment. Formulas in
-  cells are rendered; write a pipe in a cell as `\|`, also in a formula
-  (`$\|x\|$`). A table ends at a blank line.
-- **Quotes** (`> text`) read `┃ text`, one bar per level.
+  as many cells) get box-drawing borders and follow the column
+  alignment. When a table is wider than the window its widest columns
+  give way and their cells wrap. Formulas in cells are rendered. When a
+  row takes several lines (a formula, wrapped text) a rule separates
+  every row and a double rule (`╞═╪═╡`) marks the header, so each cell
+  reads as one; tables of one-line rows stay compact. Write a pipe in a
+  cell as `\|` (in a formula, use `abs{x}`). A table ends at a blank
+  line.
+- **Lists** hang their text after `•` (`◦`, `▪` when nested) or the
+  number; task items read `☐ todo` and `☑ done`.
+- **Quotes** (`> text`) have a `┃` bar, one per level.
 - **Alerts**, the GitHub ones (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
   `[!WARNING]`, `[!CAUTION]`) and Obsidian callouts (`> [!tip]- Title`),
-  get a title line: `> [!WARNING]` reads `┃ ⚠ Warning`.
+  get a title line and a coloured bar: `> [!WARNING]` reads
+  `┃ ⚠ Warning`.
 - **Horizontal rules** (`---`, `***`, `___`) read as a line of `─`.
-  `---` under a line of text underlines a heading and is left as is.
-- **Task items** read `☐ todo` and `☑ done` (`1. ☑ first` in a
-  numbered list).
+  `---` under a line of text underlines it as a heading.
 
 **Images**: `Space m I` opens a local image (relative to the file) or a
-URL from `![alt](path)` or `<img src="…">` with the system viewer, like
+URL from `![alt](path)` or `<img src="…">` (`▣ alt` in the rendered
+view) with the system viewer, like
 `:nbimage` in notebooks. Only image files (`.png`, `.jpg`, `.svg`, …,
 also behind a symlink) and `http(s)` links are opened, since the system
 opener would also run a program or script.

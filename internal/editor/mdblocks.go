@@ -4,73 +4,11 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
-
-	"github.com/mattn/go-runewidth"
 )
 
-// Block elements of the rendered markdown view, drawn as GitHub and
-// most renderers show them: GFM tables, blockquotes and alerts
-// ("> [!NOTE]", also Obsidian callouts), horizontal rules and task
-// list items. As with formulas (mdmath.go) every source line gives
-// exactly one rendered line, so nothing gets a top or bottom border.
-
-// mdRuleWidth is the width of a rendered horizontal rule.
-const mdRuleWidth = 60
-
-// renderMarkdown renders the block elements and the formulas of a
-// markdown text; code and YAML front matter are left alone.
-func renderMarkdown(src string) string {
-	lines := strings.Split(src, "\n")
-	out := make([]string, len(lines))
-	copy(out, lines)
-	start := frontMatterEnd(lines)
-	fence := ""    // the opening run of the open ``` or ~~~ fence
-	closer := ""   // the delimiter closing a display formula left open
-	mathQuote := 0 // the quote depth the open formula started at
-	prevDepth := 0 // quote depth of the previous line
-	prevBody := "" // its text after the quote markers ("" after a block)
-	for i := start; i < len(lines); i++ {
-		l := lines[i]
-		if closer == "" && fenceStep(strings.TrimSpace(l), &fence) || fence != "" {
-			prevDepth, prevBody = 0, ""
-			continue
-		}
-		if closer != "" {
-			depth, body := quoteDepth(l)
-			if mathQuote == 0 || depth == 0 {
-				depth, body = 0, l
-			}
-			out[i], closer = mathLine(body, closer)
-			out[i] = strings.Repeat("┃ ", depth) + out[i]
-			prevDepth, prevBody = depth, ""
-			continue
-		}
-		if n := tableLen(lines, i); n > 0 {
-			copy(out[i:], renderTable(lines[i:i+n]))
-			i += n - 1
-			prevDepth, prevBody = 0, ""
-			continue
-		}
-		depth, body := quoteDepth(l)
-		prefix := strings.Repeat("┃ ", depth)
-		title := ""
-		if depth > 0 && prevDepth == 0 {
-			title = alertTitle(body)
-		}
-		switch {
-		case title != "":
-			out[i] = prefix + title
-		case isRule(body) && !(depth == prevDepth && isSetextUnderline(body, prevBody)):
-			out[i] = prefix + strings.Repeat("─", mdRuleWidth)
-		default:
-			out[i], closer = mathLine(taskItem(body), "")
-			out[i] = prefix + out[i]
-			mathQuote = depth
-		}
-		prevDepth, prevBody = depth, body
-	}
-	return strings.Join(out, "\n")
-}
+// Recognising the block elements of markdown for the rendered view
+// (mdlayout.go): front matter, GFM tables, blockquotes and alerts
+// ("> [!NOTE]", also Obsidian callouts) and horizontal rules.
 
 // frontMatterEnd returns the first line after a YAML front matter block
 // ("---" on the first line up to "---" or "..."), 0 without one.
@@ -138,65 +76,6 @@ func indent(l string) int {
 		}
 	}
 	return n
-}
-
-// renderTable lays out a table with box-drawing lines: "│" between
-// cells and the delimiter row as the rule under the header. Cells are
-// split before their formulas are rendered, as GFM splits them before
-// reading inline syntax ($|x|$ needs \| in a table).
-func renderTable(rows []string) []string {
-	delim := splitTableRow(rows[1])
-	ncol := len(delim)
-	align := make([]byte, ncol) // 'r', 'c' or 0 (left)
-	for i, c := range delim {
-		switch {
-		case strings.HasPrefix(c, ":") && strings.HasSuffix(c, ":"):
-			align[i] = 'c'
-		case strings.HasSuffix(c, ":"):
-			align[i] = 'r'
-		}
-	}
-	cells := make([][]string, len(rows))
-	width := make([]int, ncol)
-	for i := range width {
-		width[i] = 1
-	}
-	for ri, row := range rows {
-		if ri == 1 {
-			continue
-		}
-		src := splitTableRow(row)
-		cells[ri] = make([]string, ncol) // extra cells are dropped, missing ones empty
-		for c := 0; c < ncol && c < len(src); c++ {
-			cell := strings.ReplaceAll(strings.ReplaceAll(src[c], `\|`, "|"), "\t", "    ")
-			cells[ri][c], _ = mathLine(cell, "")
-			width[c] = max(width[c], runewidth.StringWidth(cells[ri][c]))
-		}
-	}
-	out := make([]string, len(rows))
-	for ri := range rows {
-		parts := make([]string, ncol)
-		if ri == 1 {
-			for c := range parts {
-				parts[c] = strings.Repeat("─", width[c])
-			}
-			out[ri] = strings.Join(parts, "─┼─")
-			continue
-		}
-		for c, cell := range cells[ri] {
-			pad := width[c] - runewidth.StringWidth(cell)
-			left := 0
-			switch align[c] {
-			case 'r':
-				left = pad
-			case 'c':
-				left = pad / 2
-			}
-			parts[c] = strings.Repeat(" ", left) + cell + strings.Repeat(" ", pad-left)
-		}
-		out[ri] = strings.TrimRight(strings.Join(parts, " │ "), " ")
-	}
-	return out
 }
 
 // ---------------------------------------------------------------- quotes
@@ -288,30 +167,4 @@ func isSetextUnderline(l, prev string) bool {
 		return false
 	}
 	return !mdBulletRe.MatchString(prev) && !mdNumberRe.MatchString(prev)
-}
-
-// ---------------------------------------------------------------- tasks
-
-// taskItem draws the checkbox of a task list item (mdTaskRe): "- [ ] a"
-// reads "☐ a", "1. [x] b" reads "1. ☑ b".
-func taskItem(l string) string {
-	if !strings.Contains(l, "[") {
-		return l // skip the regexp on ordinary lines
-	}
-	m := mdTaskRe.FindStringSubmatch(l)
-	if m == nil {
-		return l
-	}
-	box := "☐"
-	if m[2] != " " {
-		box = "☑"
-	}
-	lead := m[1] // indent and marker
-	if mdBulletRe.MatchString(lead) {
-		lead = lead[:len(lead)-len(strings.TrimLeft(lead, " \t"))]
-	}
-	if rest := strings.TrimLeft(l[len(m[0]):], " "); rest != "" {
-		return lead + box + " " + rest
-	}
-	return lead + box
 }

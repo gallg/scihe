@@ -31,8 +31,10 @@ manage: just use your own terminal multiplexer.
 - **Data viewer** — CSV/TSV as an aligned table: sort, filter, edit,
   mark cells, compute statistics or transform your data with built-in or custom functions.
 - **Markdown** — formatting keys (emphasis, links, headings, lists, tables,
-  table of contents), a rendered view (formulas as Unicode, tables, alerts,
-  quotes, rules, task checkboxes), images opened in your viewer.
+  table of contents, super- and subscripts, formulas, a symbol picker), a
+  rendered view laid out as a page: formulas in two dimensions (written in
+  the LibreOffice Math syntax), tables fitted to the window, alerts,
+  quotes, lists; images opened in your viewer.
 - **Git** — built-in, simple to use git support.
 - **File explorer** — dired-style: mark, copy, paste, move, rename, delete, create.
 - **Auto-reload** — files changed on disk are detected as you work;

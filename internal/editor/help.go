@@ -38,7 +38,8 @@ func exHelp(e *Editor, a *exArgs) error {
 	sb.WriteString("Insert mode\n-----------\n")
 	sb.WriteString("  <Esc>/<C-c>      normal mode         <C-w>  delete word      <C-u>  delete to line start\n")
 	sb.WriteString("  <C-r>{reg}       insert register     <C-o>  one normal cmd   <C-n>/<C-p>  keyword completion\n")
-	sb.WriteString("  <C-t>/<C-d>      indent / dedent     <Tab>  indent           <BS>   delete (soft tab aware)\n\n")
+	sb.WriteString("  <C-t>/<C-d>      indent / dedent     <Tab>  indent           <BS>   delete (soft tab aware)\n")
+	sb.WriteString("  <C-k>            symbol by name (α ≤ ² …)\n\n")
 	sb.WriteString("Ex commands\n-----------\n")
 	seen := map[string]bool{}
 	for _, c := range exCommands {

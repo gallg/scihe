@@ -111,8 +111,12 @@ func TestWrapToggleAndDraw(t *testing.T) {
 		t.Fatalf("gk to the first row -> %v", e.win.cur)
 	}
 	typeKeys(e, "j")
+	if e.win.cur.Line != 0 || segIndex(e.segments(e.win, 0), e.win.cur.Col) != 1 {
+		t.Fatalf("j should move by row -> %v", e.win.cur)
+	}
+	typeKeys(e, "k1j")
 	if e.win.cur.Line != 1 {
-		t.Fatal("j should move by line")
+		t.Fatal("j with a count should move by line")
 	}
 	// another buffer keeps the global default (off)
 	typeKeys(e, ":enew<CR>")

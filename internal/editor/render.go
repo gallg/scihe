@@ -139,6 +139,9 @@ func (e *Editor) numberWidth(w *Window) int {
 		return 0
 	}
 	n := len(strconv.Itoa(w.buf.LineCount()))
+	if r := e.renders[w.buf.ID]; r != nil {
+		n = len(strconv.Itoa(r.src.LineCount())) // it shows the source's numbers
+	}
 	return max(n, 3) + 1
 }
 
@@ -308,6 +311,7 @@ func (e *Editor) drawWindow(w *Window) {
 	dec := e.decor[b.ID]
 	ann := e.annots[b.ID]
 	tv := e.tables[b.ID]
+	rd := e.renders[b.ID]
 	row := 0
 	for l := w.top; l < b.LineCount() && row < h; l++ {
 		y := w.y + row
@@ -330,6 +334,16 @@ func (e *Editor) drawWindow(w *Window) {
 			if tv != nil { // data row numbers; the header has none
 				txt = fmt.Sprintf("%*d ", nw-1, l)
 				if l == 0 {
+					txt = strings.Repeat(" ", nw)
+				}
+			}
+			if rd != nil { // a rendered view numbers the source lines
+				num = rd.srcOf(l) + 1
+				if o.RelativeNumber && !isCur {
+					num = abs(rd.srcOf(l) - rd.srcOf(w.cur.Line))
+				}
+				txt = fmt.Sprintf("%*d ", nw-1, num)
+				if l >= len(rd.text) || !rd.text[l] {
 					txt = strings.Repeat(" ", nw)
 				}
 			}
@@ -463,6 +477,8 @@ func (e *Editor) drawWindow(w *Window) {
 					ctl := th.NonText.Background(bgOf(st))
 					put(vc, '^', ctl)
 					put(vc+1, r^0x40, ctl)
+				case r >= 0x80 && r < 0xa0: // C1 controls never reach the terminal
+					put(vc, '?', th.NonText.Background(bgOf(st)))
 				default:
 					if vc >= left && vc+rw-left <= textW {
 						s.SetContent(w.x+gw+vc-left, y, r, nil, st)

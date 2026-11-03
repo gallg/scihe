@@ -53,8 +53,8 @@ func TestAutoreloadMarkdown(t *testing.T) {
 	if !strings.Contains(e.msg, "reloaded (changed on disk)") {
 		t.Fatalf("msg %q", e.msg)
 	}
-	if e.win.cur.Line != 3 {
-		t.Fatalf("cursor moved to %d", e.win.cur.Line)
+	if l := e.renders[rb.ID].srcOf(e.win.cur.Line); l != 3 {
+		t.Fatalf("cursor moved to line %d", l+1)
 	}
 	if !strings.Contains(rb.Text(), "Two") || strings.Contains(rb.Text(), "One") {
 		t.Fatalf("rendered view not updated:\n%s", rb.Text())

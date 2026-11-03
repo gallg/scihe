@@ -43,14 +43,22 @@ func (e *Editor) setupKeymaps() {
 	} else {
 		mo("<Space>", "right (wrap)", motion(mRight(true)))
 	}
-	mo("j", "down", vmotion(mDown))
-	mo("<Down>", "down", vmotion(mDown))
+	// j, k and the arrows go by screen row in a wrapped window (by
+	// line with a count); operators always take whole lines
+	for _, k := range []string{"j", "<Down>"} {
+		nm(k, "down", vmotion(mRowDown))
+		vm(k, "down", vmotion(mRowDown))
+		om(k, "down", vmotion(mDown))
+	}
 	mo("<C-n>", "down", vmotion(mDown))
-	mo("gj", "down (screen row)", motion(mDisplayDown))
-	mo("k", "up", vmotion(mUp))
-	mo("<Up>", "up", vmotion(mUp))
+	mo("gj", "down (screen row)", vmotion(mDisplayDown))
+	for _, k := range []string{"k", "<Up>"} {
+		nm(k, "up", vmotion(mRowUp))
+		vm(k, "up", vmotion(mRowUp))
+		om(k, "up", vmotion(mUp))
+	}
 	mo("<C-p>", "up", vmotion(mUp))
-	mo("gk", "up (screen row)", motion(mDisplayUp))
+	mo("gk", "up (screen row)", vmotion(mDisplayUp))
 	mo("w", "next word", motion(mWord(false)))
 	mo("W", "next WORD", motion(mWord(true)))
 	mo("b", "previous word", motion(mWordBack(false)))

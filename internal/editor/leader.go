@@ -243,6 +243,19 @@ func (e *Editor) setupLeader() {
 		n("<leader>m"+k.key, k.label, k.f)
 		v("<leader>m"+k.key, k.label, k.f)
 	}
+	for _, k := range []struct {
+		key, label string
+		f          func(c *ctx)
+	}{
+		{"^", "superscript (x²)", func(c *ctx) { c.e.mdScript(c, true) }},
+		{"_", "subscript (H₂O)", func(c *ctx) { c.e.mdScript(c, false) }},
+		{"f", "inline formula $…$", func(c *ctx) { c.e.mdFormula(c, false) }},
+		{"F", "display formula $$…$$", func(c *ctx) { c.e.mdFormula(c, true) }},
+	} {
+		n("<leader>m"+k.key, k.label, k.f)
+		v("<leader>m"+k.key, k.label, k.f)
+	}
+	n("<leader>mg", "insert symbol (Greek, math)", func(c *ctx) { c.e.pickSymbol() })
 	n("<leader>mt", "align table", func(c *ctx) { c.e.mdAlignTable(c) })
 	n("<leader>mT", "table of contents", func(c *ctx) { c.e.mdTOC(c) })
 	n("<leader>mn", "next heading", func(c *ctx) { c.e.mdJumpHeading(c, true) })

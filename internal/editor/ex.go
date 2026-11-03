@@ -1685,6 +1685,7 @@ func exSetFiletype(e *Editor, a *exArgs) error {
 	b := e.win.buf
 	b.Filetype = ft
 	delete(e.opts, b.ID)
+	e.linkRenderOptions()
 	return nil
 }
 

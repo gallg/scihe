@@ -273,6 +273,10 @@ func (e *Editor) insertKey(k Key) {
 			return
 		}
 	}
+	if k == "<C-k>" { // a symbol by name: the symbol is recorded, not the key
+		e.pickSymbol()
+		return
+	}
 	e.recordInsertKey(k)
 	e.insertKeyRaw(k)
 }
@@ -449,11 +453,17 @@ func (e *Editor) insertKeyRaw(k Key) {
 			e.complete(k == "<Down>")
 			return
 		}
-		l := w.cur.Line - 1
+		dir := -1
 		if k == "<Down>" {
-			l = w.cur.Line + 1
+			dir = 1
 		}
-		if l >= 0 && l < b.LineCount() {
+		if e.wraps(w) { // by screen row, as in normal mode
+			if p, _, ok := e.displayMove(&ctx{e: e, w: w, b: b, count: 1}, dir); ok {
+				w.cur = b.Clamp(p)
+			}
+			return
+		}
+		if l := w.cur.Line + dir; l >= 0 && l < b.LineCount() {
 			w.cur = e.wantPos(w, l)
 			w.cur = b.Clamp(w.cur)
 		}

@@ -20,7 +20,10 @@ Replacements support `&`, `\0`–`\9`, `\n`, `\r` and `\u` `\l` `\U` `\L`
   changes.
 - **Soft wrap is per buffer.** `:set wrap!` (`Space t w`) changes only
   the current buffer. Table views and directory listings never wrap.
-- **`gj` `gk`** move by screen row, `j` `k` by line.
+- **In a wrapped buffer `j` `k` and the arrows move by screen row**,
+  also in insert mode, as `gj` `gk` do. With a count (`5j`) they move
+  by line, so relative numbers still apply, and operators (`dj`, `yk`)
+  always take whole lines.
 - **Configuration is TOML only.** There is no vimscript or Lua, and
   mappings can't run shell commands, see
   [Configuration](configuration.md#key-remapping).

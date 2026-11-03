@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func mdEditor(t *testing.T, text string) *Editor {
@@ -356,52 +355,5 @@ func TestMdImage(t *testing.T) {
 	typeKeys(e, "gg<Space>mr<Space>mI")
 	if !strings.Contains(e.msg, "no opener found") {
 		t.Fatalf("rendered view: %q", e.msg)
-	}
-}
-
-func TestRenderMath(t *testing.T) {
-	cases := []struct{ in, want string }{
-		{"costs $5 and $10", "costs $5 and $10"},
-		{`price \$x$`, "price $x$"},
-		{"$x^{n+1}_i$", "xⁿ⁺¹ᵢ"},
-		{"$e^{i\\pi} = -1$", "e^(iπ) = -1"},
-		{`$\sqrt{x^2 + y^2}$, $\sqrt[3]{8}$`, "√(x² + y²), ∛8"},
-		{`$\frac{a+b}{2}$`, "(a+b)/2"},
-		{`$\mathbb{R}^n \to \mathcal{L}$`, "ℝⁿ → ℒ"},
-		{`$\left( \sum_{k=1}^{\infty} \hat{x}_k \right)$`, "( ∑ₖ₌₁^∞ x̂ₖ )"},
-		{`$\text{if } x \in A$`, "if  x ∈ A"},
-		{`$\unknown{x}$`, `\unknown{x}`},
-		{"`$x$` and $x$", "`$x$` and x"},
-		{`\(a \cdot b\) and \[c \neq d\]`, "a ⋅ b and c ≠ d"},
-		{"$$\n\\alpha\n$$\ntext $y$", "\nα\n\ntext y"},
-		{"```\n$x$\n```\n$x$", "```\n$x$\n```\nx"},
-		{"```\n```python\n$x$\n```\n$x$", "```\n```python\n$x$\n```\nx"},
-		{"````\n```\n$x$\n```\n````\n$x$", "````\n```\n$x$\n```\n````\nx"},
-		{"it`s $x^2$ ok", "it`s x² ok"},
-		{"$$a\nb", "a\nb"},
-		{"$f'(x)$", "f′(x)"},
-		{"spaced $ a + b $.", "spaced a + b."},
-		{"$5, then $x$", "$5, then x"},
-		{"$ x$ and $y $", "$ x$ and $y $"},
-		{"\\begin{equation}\nE = mc^2\n\\end{equation}", "\nE = mc²\n"},
-		{`\begin{align*} a &= b \\ c &= d \end{align*}`, " a  = b   c  = d "},
-		{`\begin{itemize}`, `\begin{itemize}`},
-		{`$\alpha_{i,j}$`, "αᵢ,ⱼ"},
-	}
-	for _, c := range cases {
-		if got := renderMath(c.in); got != c.want {
-			t.Errorf("%q: %q, want %q", c.in, got, c.want)
-		}
-	}
-	// nested \sqrt[ shares the depth budget: linear, not quadratic
-	start := time.Now()
-	renderMath("$" + strings.Repeat(`\sqrt[`, 20000) + "$")
-	if d := time.Since(start); d > 2*time.Second {
-		t.Errorf("nested roots took %v", d)
-	}
-	// deep nesting is cut off, not recursed into
-	got := renderMath("$" + strings.Repeat("{", 100000) + "x$")
-	if want := strings.Repeat("{", 100000-texMaxDepth) + "x"; got != want {
-		t.Errorf("deep nesting: %d runes, want %d", len(got), len(want))
 	}
 }

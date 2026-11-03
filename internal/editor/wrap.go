@@ -1,5 +1,7 @@
 package editor
 
+import "math"
+
 // Soft wrap: with 'wrap' set a buffer line is shown on as many screen
 // rows as it needs; with 'linebreak' rows break after blanks instead of
 // in the middle of a word. The buffer text is never changed.
@@ -96,6 +98,24 @@ func (e *Editor) lineRows(w *Window, l int) int {
 func mDisplayDown(c *ctx) (Pos, MotionType, bool) { return c.e.displayMove(c, 1) }
 func mDisplayUp(c *ctx) (Pos, MotionType, bool)   { return c.e.displayMove(c, -1) }
 
+// mRowDown / mRowUp are j, k and the arrow keys in normal and visual
+// mode: a screen row in a wrapped window, by line with a count (so 5j
+// agrees with the relative numbers) or without wrapping. Operators
+// keep the linewise mDown / mUp (dj deletes two lines).
+func mRowDown(c *ctx) (Pos, MotionType, bool) {
+	if c.hasCount || !c.e.wraps(c.w) {
+		return mDown(c)
+	}
+	return c.e.displayMove(c, 1)
+}
+
+func mRowUp(c *ctx) (Pos, MotionType, bool) {
+	if c.hasCount || !c.e.wraps(c.w) {
+		return mUp(c)
+	}
+	return c.e.displayMove(c, -1)
+}
+
 func (e *Editor) displayMove(c *ctx, dir int) (Pos, MotionType, bool) {
 	w := c.w
 	if !e.wraps(w) {
@@ -109,6 +129,12 @@ func (e *Editor) displayMove(c *ctx, dir int) (Pos, MotionType, bool) {
 	segs := e.segments(w, p.Line)
 	k := segIndex(segs, p.Col)
 	off := displayCol(c.b.Line(p.Line), p.Col, ts) - segs[k].vc
+	if w.rowAt == w.cur && w.rowBuf == c.b && w.rowVer == c.b.Version && w.rowWant >= 0 {
+		off = w.rowWant // a short row passed on the way keeps the column
+	}
+	if w.want < 0 {
+		off = math.MaxInt / 2 // after $: the end of each row
+	}
 	moved := false
 rows:
 	for i := 0; i < c.count; i++ {
@@ -139,5 +165,12 @@ rows:
 		col = max(s.end-1, s.start) // stay on this row
 	}
 	p.Col = min(max(col, s.start), len(line))
+	// where the cursor lands (clampCursor moves it off the end of the
+	// line in normal mode); a next row move from there reuses off
+	end := e.mode == ModeInsert || e.mode == ModeReplace || e.mode.visual()
+	if n := len(line); !end && p.Col >= n && n > 0 {
+		p.Col = n - 1
+	}
+	w.rowAt, w.rowWant, w.rowBuf, w.rowVer = p, off, c.b, c.b.Version
 	return p, Exclusive, true
 }

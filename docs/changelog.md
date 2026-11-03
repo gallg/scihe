@@ -3,6 +3,53 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.2 — 2026-11-03
+
+### Added
+- The rendered markdown view (`Space m r`) is laid out as a page:
+  formulas in two dimensions (stacked fractions, raised and lowered
+  scripts, limits above and below `∑` and `lim`, roots with their bar,
+  brackets and integrals as tall as what they enclose, matrices, cases,
+  aligned rows), markers of emphasis, code and links replaced by their
+  styles, headings underlined, hanging lists, coloured alert bars,
+  images shown as `▣ alt`, HTML comments hidden. Unicode super- and
+  subscripts, `<sup>`/`<sub>` and footnote marks are raised and lowered
+  in the size of the text. The line numbers are those of the file.
+- Formulas are written in the LibreOffice Math syntax
+  (`a over b`, `sum from{k=1} to{n}`, `sqrt{x}`, `alpha`, `<=`, `->`,
+  `matrix{a # b ## c # d}`, …). Scripts are set compactly: what is
+  inside a script stays on one row and simple scripts in a fraction are
+  Unicode characters, so formulas are no taller than they need.
+- `Space m ^` / `Space m _` turn the number, character or selection
+  into Unicode super- or subscripts (`mc²`, `H₂O`) and back, with
+  `<sup>`/`<sub>` for characters that have no such form. `Space m f`
+  puts `$…$` around a word or selection, `Space m F` opens a `$$`
+  block. `Space m g`, or `Ctrl-k` in insert mode, inserts a Greek
+  letter or symbol picked by name.
+
+- Tables in the rendered view separate their rows with a rule, and
+  their header with a double rule, when a row takes several lines (a
+  formula or wrapped text in a cell).
+
+### Changed
+- Formulas in LaTeX are no longer rendered: `\frac`, `\alpha` and the
+  other commands, and the `\(…\)`, `\[…\]` and `\begin{equation}`
+  delimiters, are shown as written.
+- With `wrap` on, `j`, `k`, `<Down>` and `<Up>` move by screen row
+  (also the arrows in insert mode); with a count they move by line, and
+  operators (`dj`) still take whole lines. `gj`/`gk` and the row moves
+  keep the column across short rows.
+- The rendered view shares the options of its file: `wrap` set in one
+  is set in the other. With `wrap`, paragraphs and tables fit the
+  window (a table's widest columns give way and their cells wrap) and
+  are laid out again when the window is resized; without it, every line
+  of the file keeps its row.
+
+### Fixed
+- C1 control characters (U+0080–U+009F) in a buffer are drawn as `?`
+  instead of being sent to the terminal, which could read them as
+  escape sequences.
+
 ## 0.2.1 — 2026-11-01
 
 ### Added

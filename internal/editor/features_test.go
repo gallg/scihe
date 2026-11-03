@@ -292,7 +292,7 @@ func TestPythonBlocks(t *testing.T) {
 func TestMarkdownRender(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "r.md")
-	os.WriteFile(path, []byte("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n- a\n"), 0o644)
+	os.WriteFile(path, []byte("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n- a\n"), 0o644)
 	e := newTestEditor(t, "")
 	typeKeys(e, ":e "+path+"<CR>3G<Space>mr")
 	md := e.findBuffer(path)
@@ -300,15 +300,28 @@ func TestMarkdownRender(t *testing.T) {
 	if r == nil || r.src != md || len(e.windows()) != 1 {
 		t.Fatalf("not rendered in place: %q", e.win.buf.Name)
 	}
-	if got := r.buf.LineString(2); got != "Energy E = mc² and αᵢ ≤ 1/2." {
-		t.Fatalf("rendered %q", got)
+	// a page: no markers, the heading underlined, formulas in two dimensions
+	want := []string{
+		"Title",
+		"━━━━━",
+		"",
+		"             2           1",
+		"Energy E = mc  and α  ≤ ───.",
+		"                    i    2",
+		"",
+		"• a",
 	}
-	if e.win.cur.Line != 2 {
-		t.Fatalf("cursor line %d", e.win.cur.Line)
+	if got := strings.Split(r.buf.Text(), "\n"); strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("rendered:\n%s", strings.Join(got, "\n"))
+	}
+	// the cursor is on the first row of its source line; the gutter
+	// numbers the source
+	if e.win.cur.Line != 4 || r.srcOf(3) != 2 || r.rowOf(2) != 4 {
+		t.Fatalf("cursor row %d, rows %v", e.win.cur.Line, r.lines)
 	}
 	// read-only while rendered
 	typeKeys(e, "x")
-	if !strings.Contains(e.msg, "read-only") || r.buf.LineString(2) != "Energy E = mc² and αᵢ ≤ 1/2." {
+	if !strings.Contains(e.msg, "read-only") || md.Modified() {
 		t.Fatalf("rendered view editable? msg %q", e.msg)
 	}
 	typeKeys(e, "<Space>mb")
@@ -318,31 +331,36 @@ func TestMarkdownRender(t *testing.T) {
 	// the view follows its source
 	md.Insert(Pos{4, 0}, "$x^n$ ")
 	e.draw()
-	if got := r.buf.LineString(4); got != "xⁿ - a" {
-		t.Fatalf("not refreshed: %q", got)
+	if got := r.buf.LineString(r.rowOf(4)); got != "x  - a" {
+		t.Fatalf("not refreshed: %q in\n%s", got, r.buf.Text())
 	}
 	// the cursor stays in the text when the source shrinks
 	typeKeys(e, "G")
 	md.SetText("# Title")
 	e.draw()
-	if e.win.cur.Line != 0 {
+	if e.win.cur.Line >= r.buf.LineCount() {
 		t.Fatalf("cursor past the end: line %d", e.win.cur.Line)
 	}
-	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
-	typeKeys(e, "3G")
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n$x^n$ - a")
+	e.draw()
+	typeKeys(e, "4G")
 	// SPC f y and 'autoreload' in the view act on its file
 	os.WriteFile(path, []byte("# Disk $y^2$\n"), 0o644)
 	typeKeys(e, "<Space>fy")
-	if md.LineString(0) != "# Disk $y^2$" || r.buf.LineString(0) != "# Disk y²" {
-		t.Fatalf("reload from the view: %q / %q (%q)", md.LineString(0), r.buf.LineString(0), e.msg)
+	if md.LineString(0) != "# Disk $y^2$" || r.buf.LineString(1) != "Disk y" {
+		t.Fatalf("reload from the view: %q / %q (%q)", md.LineString(0), r.buf.Text(), e.msg)
 	}
 	typeKeys(e, ":set autoreload<CR>")
 	if !e.options(md).Autoreload || strings.Contains(e.msg, "not available") {
 		t.Fatalf("autoreload from the view: %v %q", e.options(md).Autoreload, e.msg)
 	}
-	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
-	typeKeys(e, "3G")
-	// off again: the source is back, writable, cursor kept
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n$x^n$ - a")
+	e.draw()
+	typeKeys(e, "5G") // the baseline row of the source line 3
+	if r.srcOf(e.win.cur.Line) != 2 {
+		t.Fatalf("row 5 shows line %d", r.srcOf(e.win.cur.Line)+1)
+	}
+	// off again: the source is back on the line shown, writable
 	typeKeys(e, "<Space>mr")
 	if e.win.buf != md || len(e.renders) != 0 || e.bufferAlive(r.buf) || e.win.cur.Line != 2 {
 		t.Fatalf("not back to the source: %q line %d", e.win.buf.Name, e.win.cur.Line)

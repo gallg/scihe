@@ -151,7 +151,7 @@ are in [Data viewer](data-viewer.md).
 
 | Command | Description |
 |---------|-------------|
-| `:mdr[ender]` | Toggle the rendered view: formulas, tables, quotes, alerts, rules, task items (read-only) |
+| `:mdr[ender]` | Toggle the rendered view: the buffer laid out as a page, formulas in two dimensions, tables fitted to the window (read-only) |
 | `:mdi[mage]` | Open the image under the cursor |
 
 The formatting keys are under `Space m`, see

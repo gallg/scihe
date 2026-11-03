@@ -849,19 +849,26 @@ func exMdImage(e *Editor, a *exArgs) error {
 	}
 	w := e.win
 	path := w.buf.Path
-	if r := e.renders[w.buf.ID]; r != nil {
-		path = r.src.Path // the rendered view keeps the image syntax
-	}
-	line := w.buf.LineString(w.cur.Line)
-	col := len(string(w.buf.Line(w.cur.Line)[:min(w.cur.Col, w.buf.LineLen(w.cur.Line))]))
-	ms := mdImageRe.FindAllStringSubmatchIndex(line, -1)
 	target := ""
-	for _, m := range ms {
-		if len(ms) == 1 || col >= m[0] && col < m[1] {
-			if m[2] >= 0 {
-				target = line[m[2]:m[3]]
-			} else {
-				target = line[m[4]:m[5]]
+	if r := e.renders[w.buf.ID]; r != nil {
+		path = r.src.Path // the rendered view knows where its images are
+		ims := r.imgs[w.cur.Line]
+		for _, im := range ims {
+			if len(ims) == 1 || w.cur.Col >= im.start && w.cur.Col < im.end {
+				target = im.target
+			}
+		}
+	} else {
+		line := w.buf.LineString(w.cur.Line)
+		col := len(string(w.buf.Line(w.cur.Line)[:min(w.cur.Col, w.buf.LineLen(w.cur.Line))]))
+		ms := mdImageRe.FindAllStringSubmatchIndex(line, -1)
+		for _, m := range ms {
+			if len(ms) == 1 || col >= m[0] && col < m[1] {
+				if m[2] >= 0 {
+					target = line[m[2]:m[3]]
+				} else {
+					target = line[m[4]:m[5]]
+				}
 			}
 		}
 	}
