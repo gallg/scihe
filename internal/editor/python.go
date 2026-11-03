@@ -9,10 +9,7 @@ import (
 	"syscall"
 
 	"scihe/internal/buffer"
-	"scihe/internal/config"
 )
-
-type configOptions = config.Options
 
 // pythonInterpreter resolves the configured python on PATH. Virtual
 // environments are not managed by the editor: activate one in the shell

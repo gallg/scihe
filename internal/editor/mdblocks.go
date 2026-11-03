@@ -80,24 +80,6 @@ func indent(l string) int {
 
 // ---------------------------------------------------------------- quotes
 
-// quoteDepth returns how deeply l is quoted ("> > x" is 2) and the text
-// after the markers.
-func quoteDepth(l string) (int, string) {
-	depth, rest := 0, l
-	for {
-		t := strings.TrimLeft(rest, " ")
-		if len(rest)-len(t) > 3 || !strings.HasPrefix(t, ">") {
-			break
-		}
-		depth++
-		rest = strings.TrimPrefix(t[1:], " ")
-	}
-	if depth == 0 {
-		return 0, l
-	}
-	return depth, rest
-}
-
 // mdAlertRe matches the first line of an alert, "[!NOTE]", or of an
 // Obsidian callout, "[!tip]- Title" (the fold marker is ignored).
 var mdAlertRe = regexp.MustCompile(`^\[!([A-Za-z]+)\][-+]?\s*(.*)$`)

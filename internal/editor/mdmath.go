@@ -7,7 +7,7 @@ import (
 
 // Helpers for the formula delimiters of markdown ($…$ and $$…$$) and
 // the symbol tables of the formula parser (mdformula.go): the names
-// are those of LibreOffice Math and LaTeX, written without backslash.
+// are the LaTeX commands, written without backslash.
 
 // hasAt reports whether s starts at rs[i] (called per character: no
 // allocations).
@@ -187,7 +187,7 @@ var mathSymbols = map[string]string{
 	"in": "∈", "notin": "∉", "ni": "∋", "subset": "⊂", "supset": "⊃", "subseteq": "⊆",
 	"supseteq": "⊇", "perp": "⊥", "parallel": "∥", "mid": "∣", "vdash": "⊢", "models": "⊨",
 	// arrows
-	"to": "→", "rightarrow": "→", "leftarrow": "←", "gets": "←", "leftrightarrow": "↔",
+	"rightarrow": "→", "leftarrow": "←", "gets": "←", "leftrightarrow": "↔",
 	"Rightarrow": "⇒", "Leftarrow": "⇐", "Leftrightarrow": "⇔", "implies": "⟹", "iff": "⟺",
 	"mapsto": "↦", "uparrow": "↑", "downarrow": "↓", "longrightarrow": "⟶",
 	// logic, sets and other symbols
@@ -202,7 +202,6 @@ var mathSymbols = map[string]string{
 	// function names
 	"sin": "sin", "cos": "cos", "tan": "tan", "cot": "cot", "sec": "sec", "csc": "csc",
 	"arcsin": "arcsin", "arccos": "arccos", "arctan": "arctan", "sinh": "sinh", "cosh": "cosh",
-	"tanh": "tanh", "log": "log", "ln": "ln", "exp": "exp", "lim": "lim", "max": "max",
-	"min": "min", "sup": "sup", "inf": "inf", "det": "det", "arg": "arg", "deg": "deg",
-	"gcd": "gcd", "Pr": "Pr", "dim": "dim", "ker": "ker",
+	"tanh": "tanh", "log": "log", "ln": "ln", "exp": "exp", "arg": "arg", "deg": "deg",
+	"dim": "dim", "ker": "ker", // lim, max… are fLimFuncs
 }

@@ -261,7 +261,9 @@ follows it. Code and YAML front matter are left as written.
   underlined), `<sup>`, `<sub>`, Unicode super- and subscripts and
   footnote marks (`[^1]`) are raised or lowered a row, in the size of
   the text. HTML comments are hidden; images read `▣ alt`.
-- **Formulas** (`$…$` or `$ … $` inline, `$$…$$` display) are laid out
+- **Formulas** (`$…$` or `$ … $` inline, `$$…$$` display, and
+  `\begin{equation}…\end{equation}` or any other environment opening a
+  line, as Jupyter reads them) are laid out
   in two dimensions: fractions stacked over a rule, scripts raised and
   lowered, limits above and below `∑` and `lim`, integrals and brackets
   as tall as what they enclose, roots with their bar, matrices, cases
@@ -273,19 +275,22 @@ follows it. Code and YAML front matter are left as written.
   fractions, matrices and limits. A formula wider than the window is
   written on one line instead (`(a + b)/2`, `xⁿ⁺¹`). `$5 and $10` is
   not a formula.
-- **Formula syntax** is the LibreOffice Math one: `a over b`,
-  `frac{a}{b}`, `x^2`, `x_i`, `x sup 2 sub i`, `sqrt{x}`, `nroot{3}{x}`,
-  `alpha` or `%alpha` (`%DELTA` for Δ), `sum from{k=1} to{n}`,
-  `int from a to b`, `lim from{x -> 0}`, `left( … right)` (also
-  `left lbrace … right none`), `abs{x}`, `norm{v}`, `binom{n}{k}`,
-  `matrix{a # b ## c # d}`, `cases{x # x >= 0 ## -x # x < 0}`,
-  `stack{a # b}`, `hat x`, `bar x`, `vec v`, `bb R`, `cal L`, `setR`,
-  `"text"`, `newline`, `~` (a blank), and `<=`, `>=`, `<>`, `->`, `=>`,
-  `<=>`, `+-`, `times`, `cdot`, `in`, `union`, `forall`, `sim`,
-  `infinity` …. Braces group; `\{` writes a brace. A blank written
-  between two variables is kept (`x dx`, `m v^2`). Unicode symbols can
-  be typed directly (`x²`, `α`, `≤`). LaTeX commands (`\frac`, `\alpha`)
-  and delimiters (`\(…\)`, `\[…\]`, `\begin{equation}`) are not read.
+- **Formula syntax** is LaTeX's math mode: `\frac{a}{b}` (and
+  `\dfrac`, `{a \over b}`), `x^2`, `x_{ij}`, `\sqrt{x}`, `\sqrt[3]{x}`,
+  `\alpha`, `\Delta`, `\sum_{k=1}^{n}`, `\int_a^b`, `\lim_{x \to 0}`,
+  `\left( … \right)` (also `\left. … \right|`), `\binom{n}{k}`, the
+  `matrix`, `pmatrix`, `bmatrix`, `vmatrix`, `cases`, `array`, `aligned`
+  and `align` environments (`&` between cells, `\\` between rows),
+  `\hat{x}`, `\bar{x}`, `\vec{v}`, `\mathbb{R}`, `\mathcal{L}`,
+  `\mathbf{x}`, `\mathrm{d}`, `\text{if }`, `\operatorname{tr}`,
+  `\not\in`, `\tag{1}`, `\,` `\;` `\quad` (blanks), and the symbols
+  (`\le`, `\ne`, `\to`, `\Rightarrow`, `\pm`, `\times`, `\cdot`,
+  `\in`, `\cup`, `\forall`, `\sim`, `\infty` …). Braces group; `%`
+  starts a comment; sizes (`\displaystyle`, `\big`) are ignored; an
+  unknown command is shown as written. A blank written between two
+  variables is kept (`x dx`, `m v^2`). Unicode symbols can be typed
+  directly (`x²`, `α`, `≤`). The output of sympy and `IPython.display.Math`
+  is read as it is.
 - **Tables** (GitHub markdown: a header row, then a delimiter row with
   as many cells) get box-drawing borders and follow the column
   alignment. When a table is wider than the window its widest columns
@@ -293,7 +298,7 @@ follows it. Code and YAML front matter are left as written.
   row takes several lines (a formula, wrapped text) a rule separates
   every row and a double rule (`╞═╪═╡`) marks the header, so each cell
   reads as one; tables of one-line rows stay compact. Write a pipe in a
-  cell as `\|` (in a formula, use `abs{x}`). A table ends at a blank
+  cell as `\|` (in a formula, use `\lvert x \rvert`). A table ends at a blank
   line.
 - **Lists** hang their text after `•` (`◦`, `▪` when nested) or the
   number; task items read `☐ todo` and `☑ done`.

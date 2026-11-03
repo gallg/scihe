@@ -363,10 +363,25 @@ type OutputLine struct {
 	Kind string // "stdout", "stderr", "result", "error", "image", "info"
 }
 
-// DisplayLines converts outputs to plain display lines.
-func DisplayLines(outs []map[string]any) []OutputLine {
+// richMimes are the outputs DisplayLines hands to its renderer, in
+// order of preference, before text/plain.
+var richMimes = []string{"text/latex", "text/markdown"}
+
+// DisplayLines converts outputs to display lines. Rich outputs
+// (formulas from sympy or IPython.display.Math, markdown) are drawn by
+// render when it is not nil; it returns nil to leave an output to
+// text/plain.
+func DisplayLines(outs []map[string]any, render func(mime, text string) []string) []OutputLine {
 	var out []OutputLine
+	sep := false // after a formula of several rows: a blank before what follows
+	blank := func(kind string) {
+		if sep && len(out) > 0 {
+			out = append(out, OutputLine{"", kind})
+		}
+		sep = false
+	}
 	add := func(text, kind string) {
+		blank(kind)
 		text = ansiRe.ReplaceAllString(text, "")
 		text = strings.TrimSuffix(text, "\n")
 		for _, l := range strings.Split(text, "\n") {
@@ -396,7 +411,14 @@ func DisplayLines(outs []map[string]any) []OutputLine {
 					add(fmt.Sprintf("[%s %.1f KB — :nbimage to view]", mime, float64(size)/1024), "image")
 				}
 			}
-			if t, ok := data["text/plain"]; ok {
+			if lines := richLines(data, render); lines != nil {
+				sep = sep || len(lines) > 1 // set off from its neighbours
+				blank(kind)
+				for _, l := range lines {
+					out = append(out, OutputLine{l, kind})
+				}
+				sep = len(lines) > 1
+			} else if t, ok := data["text/plain"]; ok {
 				add(str(t), kind)
 			} else if _, ok := data["text/html"]; ok {
 				add("[text/html output]", "info")
@@ -416,6 +438,21 @@ func DisplayLines(outs []map[string]any) []OutputLine {
 		}
 	}
 	return out
+}
+
+// richLines draws the first rich output of data with render.
+func richLines(data map[string]any, render func(mime, text string) []string) []string {
+	if render == nil {
+		return nil
+	}
+	for _, mime := range richMimes {
+		if v, ok := data[mime]; ok {
+			if lines := render(mime, str(v)); lines != nil {
+				return lines
+			}
+		}
+	}
+	return nil
 }
 
 // Images returns decoded image outputs (mime, bytes) of a cell.

@@ -15,11 +15,21 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   images shown as `▣ alt`, HTML comments hidden. Unicode super- and
   subscripts, `<sup>`/`<sub>` and footnote marks are raised and lowered
   in the size of the text. The line numbers are those of the file.
-- Formulas are written in the LibreOffice Math syntax
-  (`a over b`, `sum from{k=1} to{n}`, `sqrt{x}`, `alpha`, `<=`, `->`,
-  `matrix{a # b ## c # d}`, …). Scripts are set compactly: what is
-  inside a script stays on one row and simple scripts in a fraction are
-  Unicode characters, so formulas are no taller than they need.
+- Formulas are written in LaTeX: `\frac{a}{b}`, `x^{2}`, `\sqrt[3]{x}`,
+  `\sum_{k=1}^{n}`, `\left( … \right)`, `\alpha`, `\mathbb{R}`,
+  `\text{…}`, `\operatorname{…}`, and the `matrix`, `pmatrix`,
+  `bmatrix`, `cases`, `array` and `aligned` environments. A line
+  opening an environment (`\begin{equation}`, `\begin{align*}`, …)
+  starts a display formula without dollars, up to its `\end`. Scripts
+  are set compactly: what is inside a script stays on one row and
+  simple scripts in a fraction are Unicode characters, so formulas are
+  no taller than they need.
+- Notebook outputs in LaTeX or markdown (sympy expressions,
+  `IPython.display.Math`, `Latex`, `Markdown`) are drawn in the
+  `Out [n]` box as the rendered view draws them: formulas in two
+  dimensions, at the left edge, a blank row around those of several
+  rows. Other outputs, and outputs over 64 KB, are shown as text;
+  markdown cells are left as written.
 - `Space m ^` / `Space m _` turn the number, character or selection
   into Unicode super- or subscripts (`mc²`, `H₂O`) and back, with
   `<sup>`/`<sub>` for characters that have no such form. `Space m f`
@@ -32,9 +42,6 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   formula or wrapped text in a cell).
 
 ### Changed
-- Formulas in LaTeX are no longer rendered: `\frac`, `\alpha` and the
-  other commands, and the `\(…\)`, `\[…\]` and `\begin{equation}`
-  delimiters, are shown as written.
 - With `wrap` on, `j`, `k`, `<Down>` and `<Up>` move by screen row
   (also the arrows in insert mode); with a count they move by line, and
   operators (`dj`) still take whole lines. `gj`/`gk` and the row moves
@@ -46,6 +53,8 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   of the file keeps its row.
 
 ### Fixed
+- Many lines opening a display formula that is never closed no longer
+  make the rendered view slow (each searched the rest of the file).
 - C1 control characters (U+0080–U+009F) in a buffer are drawn as `?`
   instead of being sent to the terminal, which could read them as
   escape sequences.

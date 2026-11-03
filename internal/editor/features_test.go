@@ -76,11 +76,11 @@ func TestNotebookWorkflow(t *testing.T) {
 		return c != nil && c.ExecutionCount != nil && ks.running == nil
 	})
 	c1 := ks.nb.Cell("c1")
-	lines := notebook.DisplayLines(c1.Outputs)
+	lines := notebook.DisplayLines(c1.Outputs, nil)
 	if len(lines) != 2 || lines[0].Text != "x is 42" || lines[1].Text != "42" {
 		t.Fatalf("c1 outputs: %+v", lines)
 	}
-	if got := notebook.DisplayLines(ks.nb.Cell("c2").Outputs); len(got) != 1 || got[0].Text != "43" {
+	if got := notebook.DisplayLines(ks.nb.Cell("c2").Outputs, nil); len(got) != 1 || got[0].Text != "43" {
 		t.Fatalf("c2 outputs: %+v", got)
 	}
 	// after the cell's last line: box bottom, the Out box, a blank row
@@ -101,7 +101,7 @@ func TestNotebookWorkflow(t *testing.T) {
 	typeKeys(e, "o1/0<Esc><Space>nr")
 	waitFor(t, e, "error cell", func() bool { return ks.running == nil && len(ks.queue) == 0 && lastCellRan(ks) })
 	last := ks.nb.Cells[len(ks.nb.Cells)-1]
-	if dl := notebook.DisplayLines(last.Outputs); len(dl) == 0 || !strings.Contains(dl[len(dl)-1].Text, "ZeroDivisionError") {
+	if dl := notebook.DisplayLines(last.Outputs, nil); len(dl) == 0 || !strings.Contains(dl[len(dl)-1].Text, "ZeroDivisionError") {
 		t.Fatalf("error output: %+v", dl)
 	}
 	// save and validate with nbformat
@@ -148,7 +148,7 @@ func TestNotebookWorkflow(t *testing.T) {
 	typeKeys(e, "<Space>ni")
 	waitFor(t, e, "interrupt", func() bool { return ks.running == nil })
 	last = ks.nb.Cells[len(ks.nb.Cells)-1]
-	if dl := notebook.DisplayLines(last.Outputs); len(dl) == 0 || !strings.Contains(dl[len(dl)-1].Text, "KeyboardInterrupt") {
+	if dl := notebook.DisplayLines(last.Outputs, nil); len(dl) == 0 || !strings.Contains(dl[len(dl)-1].Text, "KeyboardInterrupt") {
 		t.Fatalf("interrupt output: %+v", dl)
 	}
 }
@@ -292,7 +292,7 @@ func TestPythonBlocks(t *testing.T) {
 func TestMarkdownRender(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "r.md")
-	os.WriteFile(path, []byte("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n- a\n"), 0o644)
+	os.WriteFile(path, []byte("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n- a\n"), 0o644)
 	e := newTestEditor(t, "")
 	typeKeys(e, ":e "+path+"<CR>3G<Space>mr")
 	md := e.findBuffer(path)
@@ -341,7 +341,7 @@ func TestMarkdownRender(t *testing.T) {
 	if e.win.cur.Line >= r.buf.LineCount() {
 		t.Fatalf("cursor past the end: line %d", e.win.cur.Line)
 	}
-	md.SetText("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n$x^n$ - a")
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
 	e.draw()
 	typeKeys(e, "4G")
 	// SPC f y and 'autoreload' in the view act on its file
@@ -354,7 +354,7 @@ func TestMarkdownRender(t *testing.T) {
 	if !e.options(md).Autoreload || strings.Contains(e.msg, "not available") {
 		t.Fatalf("autoreload from the view: %v %q", e.options(md).Autoreload, e.msg)
 	}
-	md.SetText("# Title\n\nEnergy $E = mc^2$ and $alpha_i <= 1 over 2$.\n\n$x^n$ - a")
+	md.SetText("# Title\n\nEnergy $E = mc^2$ and $\\alpha_i \\le \\frac{1}{2}$.\n\n$x^n$ - a")
 	e.draw()
 	typeKeys(e, "5G") // the baseline row of the source line 3
 	if r.srcOf(e.win.cur.Line) != 2 {

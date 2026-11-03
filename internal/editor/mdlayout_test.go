@@ -1,58 +1,75 @@
 package editor
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
+
+	"scihe/internal/notebook"
 )
 
 func formulaText(s string) string { return boxString(formulaBox(parseFormula(s))) }
 
+// boxString is the text of b, one line per row, trailing blanks cut.
+func boxString(b box) string {
+	lines := make([]string, len(b.rows))
+	for i, r := range b.rows {
+		lines[i] = strings.TrimRight(rowString(r), " ")
+	}
+	return strings.Join(lines, "\n")
+}
+
 func TestFormulaLayout(t *testing.T) {
 	cases := []struct{ in, want string }{
-		// LibreOffice Math
 		{"x^2 + y_i", " 2\nx  + y\n      i"},
-		{"a over b + 1", " a\n─── + 1\n b"},
-		{"{a+b} over {c-d}", " a + b\n───────\n c − d"},
-		{"sqrt{x}", "  _\n╲╱x"},
-		{"nroot{3}{8}", "3  _\n ╲╱8"},
-		{"sum from{k=1} to{n} k", " n\n ∑  k\nk=1"},
-		{"lim from{x -> 0} f(x)", "lim f(x)\nx→0"},
-		{"left( a over b right)", "⎛ a ⎞\n⎜───⎟\n⎝ b ⎠"},
-		{"matrix{a # b ## c # d}", "a  b\nc  d"},
-		{"abs{x} <= 1 <> 2 -> 3", "|x| ≤ 1 ≠ 2 → 3"},
-		{"cases{1 # x > 0 ## 0 # x <= 0}", "⎧1  x > 0\n⎩0  x ≤ 0"},
-		{"alpha + %beta in setR", "α + β ∈ ℝ"},
-		{`x "if" y`, "x if y"},
-		{"hat x", "^\nx"},
+		{`\frac{a}{b} + 1`, " a\n─── + 1\n b"},
+		{`\frac{a+b}{c-d}`, " a + b\n───────\n c − d"},
+		{`{a+b \over c-d}`, " a + b\n───────\n c − d"},
+		{`\sqrt{x}`, "  _\n╲╱x"},
+		{`\sqrt[3]{8}`, "3  _\n ╲╱8"},
+		{`\sum_{k=1}^{n} k`, " n\n ∑  k\nk=1"},
+		{`\lim_{x \to 0} f(x)`, "lim f(x)\nx→0"},
+		{`\left( \frac{a}{b} \right)`, "⎛ a ⎞\n⎜───⎟\n⎝ b ⎠"},
+		{`\begin{matrix} a & b \\ c & d \end{matrix}`, "a  b\nc  d"},
+		{`|x| \le 1 \ne 2 \to 3`, "|x| ≤ 1 ≠ 2 → 3"},
+		{`\begin{cases} 1 & x > 0 \\ 0 & x \leq 0 \end{cases}`, "⎧1  x > 0\n⎩0  x ≤ 0"},
+		{`\alpha + \beta \in \mathbb{R}`, "α + β ∈ ℝ"},
+		{`x \text{if} y`, "x if y"},
+		{`\hat x`, "^\nx"},
 		{"x²", " 2\nx"},
-		{"int from 0 to 1 x dx", " 1\n∫  x dx\n 0"}, // blanks between terms are kept
+		{`\int_0^1 x dx`, " 1\n∫  x dx\n 0"}, // blanks between terms are kept
 		{"ad - b c", "ad − b c"},
-		{"frac{1}{2}", " 1\n───\n 2"},
-		{"left( a over b right)^2", "⎛ a ⎞2\n⎜───⎟\n⎝ b ⎠"},
-		{"left( matrix{1 # 0 ## 0 # 1} right)", "⎛1  0⎞\n⎝0  1⎠"},
-		{"stack{a = b + c # d = e}", "a = b + c\n  d = e"},
-		{"sin theta + cos(x)", "sin θ + cos(x)"},
-		{"bb R^n -> cal L", " n\nℝ  → ℒ"},
+		{`\frac12`, " 1\n───\n 2"},
+		{`\left( \frac{a}{b} \right)^2`, "⎛ a ⎞2\n⎜───⎟\n⎝ b ⎠"},
+		{`\begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}`, "⎛1  0⎞\n⎝0  1⎠"},
+		{`\begin{aligned} a &= b + c \\ d &= e \\ \end{aligned}`, "a = b + c\nd = e"},
+		{`\sin\theta + \cos(x)`, "sin θ + cos(x)"},
+		{`\mathbb{R}^n \to \mathcal{L}`, " n\nℝ  → ℒ"},
 		{"f'(x) = -1", "f′(x) = −1"},
-		{"2 sigma + m v", "2σ + m v"},
+		{`2\sigma + m v`, "2σ + m v"},
 		{`\{ a \}`, "{a}"},
+		{`x \not\in A, \; x^12 % a comment`, "        1\nx ∉ A, x 2"}, // x^12 is x¹ then 2, as in TeX
+		{`\operatorname{tr}{\left(A \right)} + \foo{x}`, `tr(A) + \foo x`},
+		{`\begin{array}{lr} 1 & 22 \\ 333 & 4 \end{array}`, "1    22\n333   4"},
+		{`\displaystyle \hat{\beta} \tag{2}`, "^\nβ    (2)"},
 		// brackets around a script stay on the line; around a fraction they grow
-		{"p(x_i mid theta)", "p(x  ∣ θ)\n   i"},
-		{"(1 over 2)", "⎛ 1 ⎞\n⎜───⎟\n⎝ 2 ⎠"},
+		{`p(x_i \mid \theta)`, "p(x  ∣ θ)\n   i"},
+		{`(\frac{1}{2})`, "⎛ 1 ⎞\n⎜───⎟\n⎝ 2 ⎠"},
 		// an integral is as tall as its integrand
-		{"int e^{x over 2} dx", "⌠  x/2\n⌡ e    dx"},
+		{`\int e^{\frac{x}{2}} dx`, "⌠  x/2\n⌡ e    dx"},
 		// scripts are set on one row, simple ones in a fraction on the line:
 		// no formula taller than it needs
 		{"e^{-x^2}", " −x²\ne"},
-		{"e^{-{(x - mu)^2} over {2 sigma^2}}", " −(x − μ)²/(2σ²)\ne"},
-		{"{a^2 + b_i} over {2 sigma^2}", " a² + bᵢ\n─────────\n   2σ²"},
-		{"x^{a over b}", " a/b\nx"},
-		{"(y_i - x_i^T beta)^2", "       T   2\n(y  − x  β)\n  i    i"},
-		{"%DELTA x ,~ 2 log x ~ f(x) dx", "Δx, 2 log x f(x) dx"},
+		{`e^{-\frac{(x - \mu)^2}{2\sigma^2}}`, " −(x − μ)²/(2σ²)\ne"},
+		{`\frac{a^2 + b_i}{2\sigma^2}`, " a² + bᵢ\n─────────\n   2σ²"},
+		{`x^{\frac{a}{b}}`, " a/b\nx"},
+		{`(y_i - x_i^T \beta)^2`, "       T   2\n(y  − x  β)\n  i    i"},
+		{`\Delta x ,\, 2 \log x \; f(x) dx`, "Δx, 2 log x f(x) dx"},
 	}
 	for _, c := range cases {
 		if got := formulaText(c.in); got != c.want {
@@ -61,7 +78,7 @@ func TestFormulaLayout(t *testing.T) {
 	}
 	// the one-line fallback
 	for in, want := range map[string]string{
-		"{a+b} over 2": "(a + b)/2", "x^{n+1}_i": "xᵢⁿ⁺¹", "sqrt{x}": "√x", "e^{i pi}": "e^(iπ)",
+		`\frac{a+b}{2}`: "(a + b)/2", "x^{n+1}_i": "xᵢⁿ⁺¹", `\sqrt{x}`: "√x", `e^{i \pi}`: "e^(iπ)",
 	} {
 		if got := parseFormula(in).linear(); got != want {
 			t.Errorf("linear %s: %q, want %q", in, got, want)
@@ -72,8 +89,10 @@ func TestFormulaLayout(t *testing.T) {
 func TestFormulaNestingBounded(t *testing.T) {
 	start := time.Now()
 	for _, s := range []string{
-		strings.Repeat("sqrt{", 20000), strings.Repeat("{", 100000) + "x", strings.Repeat("hat ", 50000) + "x",
-		strings.Repeat("(", 20000), strings.Repeat("a over ", 20000) + "b", strings.Repeat("x^", 20000),
+		strings.Repeat(`\sqrt{`, 20000), strings.Repeat("{", 100000) + "x", strings.Repeat(`\hat `, 50000) + "x",
+		strings.Repeat("(", 20000), strings.Repeat(`a \over `, 20000) + "b", strings.Repeat("x^", 20000),
+		strings.Repeat(`\begin{pmatrix}`, 20000), strings.Repeat(`\left(`, 20000), strings.Repeat(`\frac{`, 20000),
+		strings.Repeat(`\sqrt[`, 20000), strings.Repeat(`\text{`, 20000), strings.Repeat(`\not`, 20000),
 	} {
 		formulaBox(parseFormula(s))
 	}
@@ -113,7 +132,8 @@ func TestMarkdownLayout(t *testing.T) {
 		{"code is left alone", "```\n**a** $x$\n```", "```\n**a** $x$\n```"},
 		{"indented code", "text\n\n    $x$ *y*", "text\n\n$x$ *y*"},
 		{"scripts in the text are raised", "H₂O and x² and 1<sup>st</sup>", "         2      st\nH O and x  and 1\n 2"},
-		{"display formula centred", "$$\nx over 2\n$$", "         x\n        ───\n         2"},
+		{"display formula centred", "$$\n\\frac{x}{2}\n$$", "         x\n        ───\n         2"},
+		{"environment centred", "\\begin{aligned}\na &= b\n\\end{aligned} after", "       a = b\nafter"},
 		{"front matter is kept", "---\ntitle: x\n---\ntext", "---\ntitle: x\n---\ntext"},
 		{"image", "see ![plot](p.png)", "see ▣ plot"},
 		{"footnote", "a[^1]\n\n[^1]: note", " 1\na\n\n1\n  note"},
@@ -140,7 +160,7 @@ func TestMarkdownLayout(t *testing.T) {
 func TestMarkdownTableFitsTheWidth(t *testing.T) {
 	src := "| Model | Description | Score |\n|:--|---|--:|\n" +
 		"| baseline | a simple linear model trained on the whole data set | 0.81 |\n" +
-		"| ours | deep network with $1 over 2$ dropout | **0.93** |\n| 東京 | wide | 1 |"
+		"| ours | deep network with $\\frac{1}{2}$ dropout | **0.93** |\n| 東京 | wide | 1 |"
 	for width := 16; width <= 90; width++ {
 		rows := layoutMarkdown(src, width, true)
 		for _, r := range rows {
@@ -320,8 +340,8 @@ func TestMarkdownScientificInput(t *testing.T) {
 		t.Fatalf("inline formula: %q", b.LineString(0))
 	}
 	set("x")
-	typeKeys(e, "<Space>mFa over b<Esc>")
-	if b.Text() != "x\n$$\na over b\n$$" {
+	typeKeys(e, "<Space>mF\\frac{a}{b}<Esc>")
+	if b.Text() != "x\n$$\n\\frac{a}{b}\n$$" {
 		t.Fatalf("display formula: %q", b.Text())
 	}
 	// symbols by name, also in insert mode
@@ -345,15 +365,14 @@ func TestMarkdownLayoutNeverPanics(t *testing.T) {
 		strings.Repeat("> ", 25) + "---", strings.Repeat("> ", 25) + "# h", strings.Repeat("> ", 30) + "***",
 		deepList.String(), "0\n0) * 0) * # 00000000000",
 		"$matrix$" + strings.Repeat("x", 60), "$$matrix$$", "| $matrix$ |\n|---|\n| $matrix$ |",
+		`$\frac$`, `$\sqrt[$`, `$\begin{$`, `$\end{x}$`, `$\left$`, `$\right)$`, `$\text{$`, `$x^$`, `$_$`,
+		`$&&\\\\$`, `$\begin{array}{$`, "\\begin{cases}\nx", `\begin{x}\end{x}`, `$\not$`, `$\tag$`, `$\\$`,
 	} {
 		for _, wrap := range []bool{true, false} {
 			for _, w := range []int{1, 8, 20, 40} {
 				layoutMarkdown(in, w, wrap)
 			}
 		}
-	}
-	if got := formulaText("%i + %ialpha + %DELTA"); got != "%i + α + Δ" {
-		t.Errorf("%%-names: %q", got)
 	}
 	if got := layoutText(" > quoted", 40, true); got != "┃ quoted" {
 		t.Errorf("quote after a non-breaking space: %q", got)
@@ -362,7 +381,7 @@ func TestMarkdownLayoutNeverPanics(t *testing.T) {
 
 // paragraphs full of unclosed markers are laid out in linear time
 func TestMarkdownLayoutLinear(t *testing.T) {
-	for _, unit := range []string{"a < ", "*a ", "_a ", "[a ", "[a](", "`a ", "~~a ", "<!-- ", "<sup>a ", "[a][b "} {
+	for _, unit := range []string{"a < ", "*a ", "_a ", "[a ", "[a](", "`a ", "~~a ", "<!-- ", "<sup>a ", "[a][b ", "$$a ", "\\begin{a}\n"} {
 		small := strings.Repeat(unit, 5000/len(unit))
 		big := strings.Repeat(unit, 80000/len(unit))
 		st := time.Now()
@@ -442,5 +461,55 @@ func TestInputFixes(t *testing.T) {
 	typeKeys(e2, "k")
 	if e2.win.cur.Col == 2 {
 		t.Fatal("stale row column reused after an edit")
+	}
+}
+
+// LaTeX and markdown outputs of notebook cells are drawn as formulas,
+// at the left edge; text/plain stays for the rest
+func TestNotebookFormulaOutputs(t *testing.T) {
+	cases := []struct{ mime, in, want string }{
+		{"text/latex", `$\displaystyle \frac{x^{2}}{2}$`, " x²\n────\n 2"},
+		{"text/latex", `\left[\begin{matrix}1 & 2\\3 & 4\end{matrix}\right]`, "⎡1  2⎤\n⎣3  4⎦"},
+		{"text/latex", `\begin{align} a &= b \\ c &= d \end{align}`, "a = b\nc = d"},
+		{"text/markdown", "**Total**: $\\sum_i x_i$", "Total: ∑ x\n       i  i"},
+	}
+	for _, c := range cases {
+		if got := strings.Join(renderOutput(c.mime, c.in), "\n"); got != c.want {
+			t.Errorf("%s:\n%s\nwant\n%s", c.in, got, c.want)
+		}
+	}
+	if renderOutput("text/latex", "  ") != nil || renderOutput("text/latex", "$"+strings.Repeat("x", nbRichMax)+"$") != nil {
+		t.Error("an empty or huge output should fall back to text/plain")
+	}
+	outs := []map[string]any{{"output_type": "execute_result", "data": map[string]any{"text/plain": "x**2/2", "text/latex": `$\frac{x^{2}}{2}$`}}}
+	if got := notebook.DisplayLines(outs, nil); len(got) != 1 || got[0].Text != "x**2/2" {
+		t.Errorf("plain lines: %+v", got)
+	}
+	if got := notebook.DisplayLines(outs, renderOutput); len(got) != 3 || got[1].Text != "────" || got[1].Kind != "result" {
+		t.Errorf("rendered lines: %+v", got)
+	}
+}
+
+func TestNotebookFormulaOutputKernel(t *testing.T) {
+	py := testPython(t)
+	dir := t.TempDir()
+	path := filepath.Join(dir, "f.ipynb")
+	os.WriteFile(path, []byte(`{"cells": [{"cell_type": "code", "execution_count": null, "id": "c1", "metadata": {}, "outputs": [],
+ "source": ["class F:\n", "    def _repr_latex_(self): return r'$\\frac{a}{b}$'\n", "F()"]}],
+ "metadata": {}, "nbformat": 4, "nbformat_minor": 5}`), 0o644)
+	e := newTestEditor(t, "")
+	e.cfg.Python = py
+	typeKeys(e, ":e "+path+"<CR>:nbrunall<CR>")
+	ks := e.kernels[e.win.buf.ID]
+	waitFor(t, e, "cell to run", func() bool {
+		c := ks.nb.Cell("c1")
+		return c != nil && c.ExecutionCount != nil && ks.running == nil
+	})
+	var texts []string
+	for _, r := range ks.outputRows("c1") {
+		texts = append(texts, r.text)
+	}
+	if got := strings.Join(texts, "|"); got != "Out [1]| a|───| b|" {
+		t.Fatalf("output box: %q", got)
 	}
 }

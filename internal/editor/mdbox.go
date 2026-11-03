@@ -157,9 +157,7 @@ func vstack(bs []box, baseOf int, align byte) box {
 		if i == baseOf {
 			out.base = len(out.rows) + b.base
 		}
-		for _, r := range padBox(b, w, align).rows {
-			out.rows = append(out.rows, r)
-		}
+		out.rows = append(out.rows, padBox(b, w, align).rows...)
 	}
 	return out
 }
@@ -208,14 +206,4 @@ func rowString(row []mcell) string {
 		sb.WriteString(c.s)
 	}
 	return sb.String()
-}
-
-// boxString is the text of b, one line per row, trailing blanks cut
-// (for tests and the linear fallback).
-func boxString(b box) string {
-	lines := make([]string, len(b.rows))
-	for i, r := range b.rows {
-		lines[i] = strings.TrimRight(rowString(r), " ")
-	}
-	return strings.Join(lines, "\n")
 }

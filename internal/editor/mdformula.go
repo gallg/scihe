@@ -8,20 +8,20 @@ import (
 // Formulas laid out in two dimensions, as TeX does with fewer means:
 // fractions stacked over a rule, scripts raised and lowered a row,
 // limits above and below big operators, roots with their bar,
-// delimiters as tall as what they enclose, matrices and stacked rows.
+// delimiters as tall as what they enclose, matrices and aligned rows.
 // Inside scripts and fractions the layout is tighter, as TeX sets them
 // smaller: nested scripts become Unicode characters and fractions in a
 // script are written a/b, so a formula is no taller than it needs.
 //
-// The syntax is the LibreOffice Math one:
+// The syntax is LaTeX's math mode:
 //
-//	a over b   sqrt{x}   nroot{3}{x}   x^2   x_i   x sup 2 sub i   alpha   %alpha
-//	sum from{k=1} to{n} k   int from 0 to infinity f(x) dx   lim from{x -> 0}
-//	left( a over b right)   abs{x}   matrix{a # b ## c # d}   cases{1 # x > 0 ## 0 # x <= 0}
-//	<=  >=  <>  ->  =>  <=>  +-  times  cdot  in  union  forall  "text"  newline
+//	\frac{a}{b}  \sqrt{x}  \sqrt[3]{x}  x^2  x_{ij}  \alpha  \sum_{k=1}^{n} k
+//	\int_0^\infty f(x)\,dx  \lim_{x \to 0}  \left( \frac{a}{b} \right)  \binom{n}{k}
+//	\mathbb{R}  \mathbf{x}  \hat{\beta}  \text{if }  \operatorname{tr}  \tag{1}
+//	\begin{pmatrix} a & b \\ c & d \end{pmatrix}  \begin{cases} … \end{cases}  \begin{aligned} … \end{aligned}
 //
-// Braces group, a blank between two terms is kept (x dx), ~ is a
-// blank, and \ writes the next character as it is (\{).
+// Braces group; a blank between two variables is kept (x dx); ~, \,
+// and \quad are blanks; unknown commands are shown as written.
 
 type fkind byte
 
@@ -77,16 +77,10 @@ func frow(kids ...*fnode) *fnode     { return &fnode{kind: fRow, kids: kids} }
 // ---------------------------------------------------------------- tokens
 
 type ftok struct {
-	k        byte // 'w' word, 'n' number, 's' symbol, '"' text, '{', '}', '^', '_', 'R' row break (##), 'C' column break (#), '\'' prime
+	k        byte // 'w' letter, 'n' number, 's' symbol, 'c' command (\name), '{', '}', '^', '_', 'R' row break (\\), 'C' column break (&), '\'' prime
 	s        string
 	pos, end int  // runes of the source
 	sp       bool // after a blank
-}
-
-var fMultiSyms = []struct{ s, r string }{
-	{"<=>", "⇔"}, {"<->", "↔"}, {"<=", "≤"}, {">=", "≥"}, {"<>", "≠"}, {"!=", "≠"},
-	{"->", "→"}, {"<-", "←"}, {"=>", "⇒"}, {"+-", "±"}, {"-+", "∓"}, {"...", "…"},
-	{"<<", "≪"}, {">>", "≫"}, {":=", ":="},
 }
 
 // fScriptChars maps Unicode super- and subscript characters back to
@@ -118,23 +112,39 @@ func ftokenize(rs []rune) []ftok {
 		switch {
 		case unicode.IsSpace(r):
 			i++
-		case r == '\\' && i+1 < len(rs): // \{ \( …: the character itself
-			add('s', string(rs[i+1]), i, i+2)
+		case r == '%': // a comment, to the end of the line
+			for i < len(rs) && rs[i] != '\n' {
+				i++
+			}
+		case r == '\\' && i+1 < len(rs) && isASCIILetter(rs[i+1]):
+			j := i + 1
+			for j < len(rs) && isASCIILetter(rs[j]) {
+				j++
+			}
+			add('c', string(rs[i+1:j]), i, j)
+			i = j
+		case r == '\\' && i+1 < len(rs) && rs[i+1] == '\\':
+			add('R', "", i, i+2)
 			i += 2
-		case r == '%' && i+1 < len(rs) && isASCIILetter(rs[i+1]):
-			j := i + 1
-			for j < len(rs) && isASCIILetter(rs[j]) {
-				j++
+		case r == '\\' && i+1 < len(rs):
+			switch c := rs[i+1]; {
+			case strings.ContainsRune(",:>; !", c): // \, \; …: spaces
+				add('c', string(c), i, i+2)
+			case c == '|':
+				add('s', "‖", i, i+2)
+			default: // \{ \} \$ \% \& \#: the character itself
+				add('s', string(c), i, i+2)
 			}
-			add('w', string(rs[i:j]), i, j)
-			i = j
-		case isASCIILetter(r):
-			j := i + 1
-			for j < len(rs) && isASCIILetter(rs[j]) {
-				j++
-			}
-			add('w', string(rs[i:j]), i, j)
-			i = j
+			i += 2
+		case r == '&':
+			add('C', "", i, i+1)
+			i++
+		case r == '~':
+			add('c', "~", i, i+1)
+			i++
+		case isASCIILetter(r): // each letter is a variable: ab is a times b
+			add('w', string(r), i, i+1)
+			i++
 		case r >= '0' && r <= '9':
 			j := i + 1
 			for j < len(rs) && (rs[j] >= '0' && rs[j] <= '9' || rs[j] == '.' && j+1 < len(rs) && rs[j+1] >= '0' && rs[j+1] <= '9') {
@@ -142,27 +152,12 @@ func ftokenize(rs []rune) []ftok {
 			}
 			add('n', string(rs[i:j]), i, j)
 			i = j
-		case r == '"':
-			j := i + 1
-			for j < len(rs) && rs[j] != '"' {
-				j++
-			}
-			add('"', string(rs[i+1:j]), i, min(j+1, len(rs)))
-			i = min(j+1, len(rs))
-		case r == '#':
-			if i+1 < len(rs) && rs[i+1] == '#' {
-				add('R', "", i, i+2)
-				i += 2
-			} else {
-				add('C', "", i, i+1)
-				i++
-			}
-		case r == '~' || r == '`':
-			add('w', "~", i, i+1)
-			i++
 		case strings.ContainsRune("{}^_'", r):
 			add(byte(r), "", i, i+1)
 			i++
+		case hasAt(rs, i, ":="):
+			add('s', ":=", i, i+2)
+			i += 2
 		default:
 			if m, ok := fScriptChars[r]; ok { // x²³ reads x^{23}
 				add(byte(m[0]), "", i, i)
@@ -180,19 +175,8 @@ func ftokenize(rs []rune) []ftok {
 				add('}', "", i, i)
 				continue
 			}
-			matched := false
-			for _, m := range fMultiSyms {
-				if hasAt(rs, i, m.s) {
-					add('s', m.r, i, i+len(m.s))
-					i += len(m.s)
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				add('s', string(r), i, i+1)
-				i++
-			}
+			add('s', string(r), i, i+1)
+			i++
 		}
 	}
 	return out
@@ -225,17 +209,17 @@ func parseFormula(src string) *fnode {
 	return p.body()
 }
 
-func (p *fparser) word(t ftok, w string) bool { return t.k == 'w' && t.s == w }
+func (p *fparser) cmd(t ftok, name string) bool { return t.k == 'c' && t.s == name }
 
-func (p *fparser) next(w string) bool { return p.i < p.lim && p.word(p.toks[p.i], w) }
+func (p *fparser) next(name string) bool { return p.i < p.lim && p.cmd(p.toks[p.i], name) }
 
 // stops reports a token ending a row.
 func (p *fparser) stops(t ftok) bool {
 	switch t.k {
 	case '}', 'C', 'R':
 		return true
-	case 'w':
-		return t.s == "right" || t.s == "newline"
+	case 'c':
+		return t.s == "right" || t.s == "end"
 	}
 	return false
 }
@@ -254,15 +238,17 @@ func (p *fparser) body() *fnode {
 		switch {
 		case t.k == '}':
 			out.kids = append(out.kids, fsym("}", cClose))
-		case p.word(t, "right"):
+		case p.cmd(t, "right"):
 			p.delim()
+		case p.cmd(t, "end"):
+			p.rawArg()
 		}
 		out.kids = append(out.kids, p.gridNode(p.grid()))
 	}
 	return out
 }
 
-// grid reads cells separated by # in rows separated by ## or newline.
+// grid reads cells separated by & in rows separated by \\.
 func (p *fparser) grid() [][]*fnode {
 	rows := [][]*fnode{nil}
 	for {
@@ -271,10 +257,10 @@ func (p *fparser) grid() [][]*fnode {
 		if p.i >= p.lim {
 			return rows
 		}
-		switch t := p.toks[p.i]; {
-		case t.k == 'C':
+		switch p.toks[p.i].k {
+		case 'C':
 			p.i++
-		case t.k == 'R' || p.word(t, "newline"):
+		case 'R':
 			p.i++
 			rows = append(rows, nil)
 		default:
@@ -300,25 +286,15 @@ func (p *fparser) row() *fnode {
 	}
 	p.depth++
 	defer func() { p.depth-- }()
-	overs := 0 // a over b over c nests: bounded like groups
 	for p.i < p.lim {
 		t := p.toks[p.i]
 		if p.stops(t) {
 			break
 		}
-		if overs+p.depth >= fMaxDepth {
-			n.kids = append(n.kids, p.rest())
-			break
-		}
-		if p.word(t, "over") {
+		if p.cmd(t, "over") { // TeX's {a \over b}: all before over all after
 			p.i++
-			overs++
-			num := frow()
-			if len(n.kids) > 0 {
-				num = n.kids[len(n.kids)-1]
-				n.kids = n.kids[:len(n.kids)-1]
-			}
-			n.kids = append(n.kids, &fnode{kind: fFrac, kids: []*fnode{num, p.term()}, sp: num.sp})
+			num := frow(n.kids...)
+			n.kids = []*fnode{{kind: fFrac, kids: []*fnode{num, p.row()}}}
 			continue
 		}
 		n.kids = append(n.kids, p.term())
@@ -351,14 +327,14 @@ loop:
 			break
 		}
 		switch {
-		case t.k == '^' || p.word(t, "sup") || base.kind == fBig && p.word(t, "to"):
+		case t.k == '^':
 			p.i++
 			if sup != nil {
 				base, sup, sub = p.scripted(base, sup, sub), nil, nil
 				nests++
 			}
 			sup = p.arg()
-		case t.k == '_' || p.word(t, "sub") || base.kind == fBig && p.word(t, "from"):
+		case t.k == '_':
 			p.i++
 			if sub != nil {
 				base, sup, sub = p.scripted(base, sup, sub), nil, nil
@@ -370,6 +346,8 @@ loop:
 			base = frow(p.scripted(base, sup, sub), fsym("′", cOrd))
 			sup, sub = nil, nil
 			nests++
+		case p.cmd(t, "limits") || p.cmd(t, "nolimits"):
+			p.i++
 		default:
 			break loop
 		}
@@ -394,7 +372,7 @@ func (p *fparser) scripted(base, sup, sub *fnode) *fnode {
 }
 
 // arg reads the argument of a command or a script: a group, a command
-// or one symbol, a sign before it (x^-1).
+// or one symbol (one digit: \frac12 and x^12 take the 1 alone).
 func (p *fparser) arg() *fnode {
 	if p.i >= p.lim {
 		return frow()
@@ -403,9 +381,9 @@ func (p *fparser) arg() *fnode {
 	if p.stops(t) || t.k == '^' || t.k == '_' {
 		return frow()
 	}
-	if t.k == 's' && (t.s == "-" || t.s == "+") {
-		p.i++
-		return frow(fsym(fMinus(t.s), cOrd), p.primary())
+	if t.k == 'n' && len(t.s) > 1 {
+		p.toks[p.i].s, p.toks[p.i].pos, p.toks[p.i].sp = t.s[1:], t.pos+1, false
+		return fsym(t.s[:1], cNum)
 	}
 	return p.primary()
 }
@@ -443,14 +421,17 @@ func (p *fparser) primaryOf(t ftok) *fnode {
 		if p.i < p.lim && p.toks[p.i].k == '}' {
 			p.i++
 		}
+		if n.kind == fRow && len(n.kids) == 1 {
+			return n.kids[0] // {\left(x\right)}: the fence itself
+		}
 		return n
-	case '"':
-		return fsym(t.s, cText)
 	case 'n':
 		return fsym(t.s, cNum)
+	case 'w':
+		return fsym(t.s, cVar)
 	case 's':
 		return p.symbol(t.s)
-	case 'w':
+	case 'c':
 		return p.command(t.s)
 	case '\'':
 		return fsym("′", cOrd)
@@ -506,14 +487,15 @@ func (p *fparser) closing(open, cl string) int {
 				return j
 			}
 			depth--
-		case p.stops(t) || p.word(t, "left"):
+		case p.stops(t) || p.cmd(t, "left"):
 			return -1
 		}
 	}
 	return -1
 }
 
-// delim reads the delimiter after left and right.
+// delim reads the delimiter after \left, \right, \middle or \big: a
+// character or a command (\langle, \{); "." is none.
 func (p *fparser) delim() string {
 	if p.i >= p.lim {
 		return ""
@@ -522,26 +504,60 @@ func (p *fparser) delim() string {
 	p.i++
 	switch t.k {
 	case 's':
+		if t.s == "." {
+			return ""
+		}
 		return t.s
-	case 'w':
-		if d, ok := fDelims[t.s]; ok {
-			return d
+	case 'c':
+		if s, ok := fAliases[t.s]; ok {
+			return s
+		}
+		if s, ok := mathSymbols[t.s]; ok && s != t.s {
+			return s
 		}
 	}
 	p.i--
 	return ""
 }
 
-var fDelims = map[string]string{
-	"none": "", "lbrace": "{", "rbrace": "}", "langle": "⟨", "rangle": "⟩",
-	"lline": "|", "rline": "|", "ldline": "‖", "rdline": "‖",
-	"lceil": "⌈", "rceil": "⌉", "lfloor": "⌊", "rfloor": "⌋",
+// rawArg returns the source text of the next group ({…}) or token, as
+// written: an environment's name, the text of \text{…}.
+func (p *fparser) rawArg() string {
+	if p.i >= p.lim {
+		return ""
+	}
+	t := p.toks[p.i]
+	if t.k != '{' {
+		p.i++
+		return string(p.rs[t.pos:t.end])
+	}
+	depth := 0
+	for j := p.i; j < p.lim && j < p.i+fMaxScan; j++ {
+		switch p.toks[j].k {
+		case '{':
+			depth++
+		case '}':
+			if depth--; depth == 0 {
+				p.i = j + 1
+				return string(p.rs[t.end:p.toks[j].pos])
+			}
+		}
+	}
+	p.i++ // never closed: the brace alone
+	return ""
+}
+
+// skipStar skips the * of a starred command (\operatorname*).
+func (p *fparser) skipStar() {
+	if p.i < p.lim && p.toks[p.i].k == 's' && p.toks[p.i].s == "*" {
+		p.i++
+	}
 }
 
 var fBigOps = map[string]string{
 	"sum": "∑", "prod": "∏", "coprod": "∐", "int": "∫", "iint": "∬", "iiint": "∭", "oint": "∮",
-	"lint": "∮", "bigcup": "⋃", "bigcap": "⋂", "bigoplus": "⨁", "bigotimes": "⨂",
-	"bigvee": "⋁", "bigwedge": "⋀",
+	"bigcup": "⋃", "bigcap": "⋂", "bigoplus": "⨁", "bigotimes": "⨂", "bigodot": "⨀",
+	"biguplus": "⨄", "bigsqcup": "⨆", "bigvee": "⋁", "bigwedge": "⋀",
 }
 
 var fBigSyms = map[string]string{"∑": "∑", "∏": "∏", "∐": "∐", "∫": "∫", "∬": "∬", "∭": "∭", "∮": "∮", "⋃": "⋃", "⋂": "⋂"}
@@ -549,26 +565,38 @@ var fBigSyms = map[string]string{"∑": "∑", "∏": "∏", "∐": "∐", "∫"
 // fLimFuncs are function names written with limits below (lim, max…).
 var fLimFuncs = map[string]string{
 	"lim": "lim", "liminf": "lim inf", "limsup": "lim sup", "max": "max", "min": "min",
-	"inf": "inf", "det": "det", "gcd": "gcd", "Pr": "Pr", "argmax": "arg max", "argmin": "arg min",
+	"sup": "sup", "inf": "inf", "det": "det", "gcd": "gcd", "Pr": "Pr",
 }
 
-// fAliases are the LibreOffice Math names of symbols not in
-// mathSymbols.
+// fAliases are the LaTeX names of symbols not in mathSymbols.
 var fAliases = map[string]string{
-	"infinity": "∞", "union": "∪", "intersection": "∩", "and": "∧", "or": "∨", "owns": "∋",
-	"prop": "∝", "ortho": "⊥", "toward": "→", "dlarrow": "⇐", "drarrow": "⇒", "dlrarrow": "⇔",
-	"leslant": "⩽", "geslant": "⩾", "nsubset": "⊄", "nsubseteq": "⊈", "nsupset": "⊅",
-	"nsupseteq": "⊉", "dotslow": "…", "dotsaxis": "⋯", "dotsvert": "⋮", "dotsup": "⋰",
-	"dotsdown": "⋱", "setN": "ℕ", "setZ": "ℤ", "setQ": "ℚ", "setR": "ℝ", "setC": "ℂ",
-	"wp": "℘", "odot": "⊙", "ominus": "⊖", "oslash": "⊘", "def": "≝", "divides": "∣",
-	"ndivides": "∤", "lambdabar": "ƛ", "percent": "%", "transl": "⊷",
-	"lbrace": "{", "rbrace": "}", "to": "→",
+	"to": "→", "odot": "⊙", "ominus": "⊖", "oslash": "⊘", "wp": "℘", "lvert": "|", "rvert": "|",
+	"lVert": "‖", "rVert": "‖", "lbrack": "[", "rbrack": "]", "leqslant": "⩽", "geqslant": "⩾",
+	"nleq": "≰", "ngeq": "≱", "nless": "≮", "ngtr": "≯", "nsim": "≁", "ncong": "≇", "nequiv": "≢",
+	"nmid": "∤", "nparallel": "∦", "nsubseteq": "⊈", "nsupseteq": "⊉", "subsetneq": "⊊",
+	"supsetneq": "⊋", "sqsubseteq": "⊑", "sqsupseteq": "⊒", "sqcup": "⊔", "sqcap": "⊓",
+	"uplus": "⊎", "amalg": "⨿", "lesssim": "≲", "gtrsim": "≳", "prec": "≺", "succ": "≻",
+	"preceq": "⪯", "succeq": "⪰", "asymp": "≍", "doteq": "≐", "triangleq": "≜", "coloneqq": "≔",
+	"approxeq": "≊", "dotsc": "…", "dotsb": "⋯", "dotsm": "⋯", "dotsi": "⋯", "cdotp": "·",
+	"longleftarrow": "⟵", "longleftrightarrow": "⟷", "Longrightarrow": "⟹", "Longleftarrow": "⟸",
+	"Longleftrightarrow": "⟺", "longmapsto": "⟼", "hookrightarrow": "↪", "hookleftarrow": "↩",
+	"rightleftharpoons": "⇌", "leadsto": "⇝", "Uparrow": "⇑", "Downarrow": "⇓", "updownarrow": "↕",
+	"nearrow": "↗", "searrow": "↘", "swarrow": "↙", "nwarrow": "↖", "ddagger": "‡",
+	"complement": "∁", "mho": "℧", "hslash": "ℏ", "beth": "ℶ", "gimel": "ℷ", "imath": "ı",
+	"jmath": "ȷ", "varkappa": "ϰ", "triangle": "△", "square": "□", "Box": "□", "diamond": "⋄",
+	"lozenge": "◊", "bigstar": "★", "blacksquare": "■", "checkmark": "✓",
+}
+
+// fNegated are the symbols \not turns into their negation.
+var fNegated = map[string]string{
+	"=": "≠", "∈": "∉", "⊂": "⊄", "⊃": "⊅", "⊆": "⊈", "⊇": "⊉", "≡": "≢", "∼": "≁", "≅": "≇",
+	"<": "≮", ">": "≯", "≤": "≰", "≥": "≱", "∣": "∤", "∥": "∦", "∃": "∄",
 }
 
 var fAccents = map[string]string{
-	"hat": "^", "widehat": "^", "bar": "_", "overline": "_", "vec": "→", "widevec": "→",
+	"hat": "^", "widehat": "^", "bar": "_", "overline": "_", "vec": "→", "overrightarrow": "→",
 	"dot": "˙", "ddot": "¨", "tilde": "~", "widetilde": "~", "acute": "´", "grave": "`",
-	"check": "ˇ", "breve": "˘", "circle": "˚",
+	"check": "ˇ", "breve": "˘", "mathring": "˚",
 }
 
 // fLinearAccents are the combining marks of the one-line fallback.
@@ -576,43 +604,42 @@ var fLinearAccents = map[string]rune{
 	"^": '̂', "_": '̄', "→": '⃗', "˙": '̇', "¨": '̈', "~": '̃', "´": '́', "`": '̀', "ˇ": '̌', "˘": '̆', "˚": '̊',
 }
 
-// command reads a word: a keyword, the name of a symbol or an
-// identifier.
+// fSpaces are the widths of the spacing commands.
+var fSpaces = map[string]int{",": 1, ":": 1, ">": 1, ";": 1, " ": 1, "~": 1, "enspace": 1, "thinspace": 1, "quad": 2, "qquad": 4}
+
+// fIgnored are commands that change nothing here (sizes, numbering).
+var fIgnored = map[string]bool{
+	"displaystyle": true, "textstyle": true, "scriptstyle": true, "scriptscriptstyle": true,
+	"nonumber": true, "notag": true, "limits": true, "nolimits": true, "!": true,
+	"strut": true, "nobreak": true, "allowbreak": true,
+}
+
+// command reads \name: a construct, the name of a symbol, or an
+// unknown command (shown as written).
 func (p *fparser) command(name string) *fnode {
-	if strings.HasPrefix(name, "%") { // Greek: %alpha, %ialpha (italic)
-		word := name
-		name = name[1:]
-		italic := false
-		if _, ok := mathSymbols[name]; !ok && len(name) > 1 && strings.HasPrefix(name, "i") {
-			name, italic = name[1:], true
-		}
-		if _, ok := mathSymbols[name]; !ok && name != "" && strings.ToUpper(name) == name { // %DELTA
-			name = name[:1] + strings.ToLower(name[1:])
-		}
-		if s, ok := mathSymbols[name]; ok && name != "" {
-			n := fsym(s, cOrd)
-			if italic || unicode.IsLower([]rune(s)[0]) {
-				n.cls = cVar
-			}
-			return n
-		}
-		return fsym(word, cOrd) // not a Greek letter: as written
+	if fIgnored[name] {
+		return frow()
 	}
-	if len(name) == 1 && isASCIILetter(rune(name[0])) {
-		return fsym(name, cVar) // a letter
+	if w, ok := fSpaces[name]; ok {
+		return &fnode{kind: fSpace, gap: w}
 	}
 	switch name {
-	case "frac":
+	case "frac", "dfrac", "tfrac", "cfrac":
 		a := p.arg()
 		return &fnode{kind: fFrac, kids: []*fnode{a, p.arg()}}
-	case "binom":
+	case "binom", "dbinom", "tbinom":
 		a := p.arg()
 		m := &fnode{kind: fMatrix, rows: [][]*fnode{{a}, {p.arg()}}, align: []byte{'c'}}
 		return &fnode{kind: fFence, left: "(", right: ")", kids: []*fnode{m}}
 	case "sqrt":
-		return &fnode{kind: fSqrt, kids: []*fnode{p.arg()}}
-	case "nroot":
-		idx := p.arg()
+		var idx *fnode
+		if p.i < p.lim && p.toks[p.i].k == 's' && p.toks[p.i].s == "[" { // \sqrt[3]{x}
+			p.i++
+			if j := p.closing("[", "]"); j >= 0 {
+				idx = p.within(j)
+				p.i = j + 1
+			}
+		}
 		return &fnode{kind: fSqrt, kids: []*fnode{p.arg()}, sub: idx}
 	case "left":
 		l := p.delim()
@@ -626,7 +653,31 @@ func (p *fparser) command(name string) *fnode {
 	case "right":
 		p.delim()
 		return frow()
-	case "nitalic":
+	case "middle":
+		return fsym(p.delim(), cRel)
+	case "big", "Big", "bigg", "Bigg", "bigl", "Bigl", "biggl", "Biggl", "bigr", "Bigr", "biggr", "Biggr", "bigm", "Bigm":
+		d := p.delim()
+		return fsym(d, symClass(d))
+	case "begin":
+		return p.env()
+	case "end":
+		p.rawArg()
+		return frow()
+	case "over":
+		return frow() // only between terms
+	case "text", "textrm", "textnormal", "textup", "mbox", "textit", "textbf", "textsf", "texttt":
+		n := fsym(strings.TrimSpace(p.rawArg()), cText)
+		switch name {
+		case "textit":
+			n.st = msItalic
+		case "textbf":
+			n.st = msBold
+		}
+		return n
+	case "operatorname":
+		p.skipStar()
+		return fsym(p.arg().linear(), cFunc)
+	case "mathrm", "mathup", "mathsf", "mathtt", "mathfrak":
 		n := p.arg()
 		eachSym(n, func(s *fnode) {
 			if s.cls == cVar {
@@ -634,70 +685,43 @@ func (p *fparser) command(name string) *fnode {
 			}
 		})
 		return n
-	case "ital":
+	case "mathit":
 		n := p.arg()
 		eachSym(n, func(s *fnode) { s.st |= msItalic })
 		return n
-	case "bold":
+	case "mathbf", "boldsymbol", "bm", "pmb":
 		n := p.arg()
 		eachSym(n, func(s *fnode) { s.st |= msBold })
 		return n
-	case "bb":
+	case "mathbb":
 		n := p.arg()
 		eachSym(n, func(s *fnode) { s.text, s.cls = alphabet(s.text, mathbb), cOrd })
 		return n
-	case "cal":
+	case "mathcal", "mathscr":
 		n := p.arg()
 		eachSym(n, func(s *fnode) { s.text, s.cls = alphabet(s.text, mathcal), cOrd })
 		return n
-	case "func":
-		if p.i < p.lim && p.toks[p.i].k == 'w' {
-			p.i++
-			return fsym(p.toks[p.i-1].s, cFunc)
-		}
-		return frow()
-	case "abs", "norm", "floor", "ceil":
-		d := map[string][2]string{"abs": {"|", "|"}, "norm": {"‖", "‖"}, "floor": {"⌊", "⌋"}, "ceil": {"⌈", "⌉"}}[name]
-		return &fnode{kind: fFence, left: d[0], right: d[1], kids: []*fnode{p.arg()}}
-	case "matrix", "stack", "cases":
-		var rows [][]*fnode
-		if p.i < p.lim && p.toks[p.i].k == '{' {
-			p.i++
-			rows = p.grid()
-			if p.i < p.lim && p.toks[p.i].k == '}' {
-				p.i++
-			}
-		}
-		if name == "stack" { // stack{a # b # c} piles its cells
-			var col [][]*fnode
-			for _, r := range rows {
-				for _, c := range r {
-					col = append(col, []*fnode{c})
-				}
-			}
-			rows = col
-		}
-		m := &fnode{kind: fMatrix, rows: rows, align: []byte{'c'}, gap: 2}
-		if name == "cases" {
-			m.align = []byte{'l'}
-			return &fnode{kind: fFence, left: "{", kids: []*fnode{m}}
-		}
-		return m
 	case "underline":
 		n := p.arg()
 		eachSym(n, func(s *fnode) { s.st |= msUnderline })
 		return n
-	case "~":
-		return &fnode{kind: fSpace, gap: 1}
-	case "quad":
-		return &fnode{kind: fSpace, gap: 2}
-	case "qquad":
-		return &fnode{kind: fSpace, gap: 4}
-	case "color":
-		if p.i < p.lim {
-			p.i++ // color red x
-		}
+	case "boxed", "substack", "smash", "mathstrut":
+		return p.arg()
+	case "color", "label", "hspace", "vspace":
+		p.rawArg()
 		return frow()
+	case "textcolor":
+		p.rawArg()
+		return p.arg()
+	case "tag":
+		p.skipStar()
+		return frow(&fnode{kind: fSpace, gap: 4}, fsym("("+strings.TrimSpace(p.rawArg())+")", cOrd))
+	case "not":
+		n := p.primary()
+		if s, ok := fNegated[n.text]; ok && n.kind == fSym {
+			return fsym(s, cRel)
+		}
+		return frow(fsym("¬", cOrd), n)
 	}
 	if mark, ok := fAccents[name]; ok {
 		return &fnode{kind: fAccent, text: mark, kids: []*fnode{p.arg()}}
@@ -714,13 +738,66 @@ func (p *fparser) command(name string) *fnode {
 	if s, ok := mathSymbols[name]; ok {
 		switch {
 		case s == name:
-			return fsym(s, cFunc) // sin, log…
+			return fsym(s, cFunc) // \sin, \log…
 		case unicode.IsLower([]rune(s)[0]) && unicode.Is(unicode.Greek, []rune(s)[0]):
 			return fsym(s, cVar)
 		}
 		return fsym(s, symClass(s))
 	}
-	return fsym(name, cVar) // an identifier
+	return fsym(`\`+name, cFunc) // unknown: as written
+}
+
+// fEnvFences are the brackets of the matrix environments.
+var fEnvFences = map[string][2]string{
+	"pmatrix": {"(", ")"}, "bmatrix": {"[", "]"}, "Bmatrix": {"{", "}"}, "vmatrix": {"|", "|"},
+	"Vmatrix": {"‖", "‖"}, "cases": {"{", ""}, "dcases": {"{", ""}, "rcases": {"", "}"},
+}
+
+// env reads \begin{name} … \end{name}: matrices, cases, aligned rows,
+// arrays and equations.
+func (p *fparser) env() *fnode {
+	name := strings.TrimSuffix(strings.TrimSpace(p.rawArg()), "*")
+	align := []byte{'c'}
+	switch name {
+	case "array", "subarray":
+		align = align[:0]
+		for _, c := range p.rawArg() {
+			if c == 'l' || c == 'c' || c == 'r' {
+				align = append(align, byte(c))
+			}
+		}
+		if len(align) == 0 {
+			align = []byte{'c'}
+		}
+	case "alignat", "alignedat":
+		p.rawArg() // the number of columns
+		fallthrough
+	case "align", "aligned", "split", "eqnarray", "flalign":
+		align = []byte("rl")
+	case "cases", "dcases", "rcases":
+		align = []byte{'l'}
+	}
+	rows := p.grid()
+	if p.next("end") {
+		p.i++
+		p.rawArg()
+	}
+	if last := rows[len(rows)-1]; len(rows) > 1 && len(last) == 1 && last[0].kind == fRow && len(last[0].kids) == 0 {
+		rows = rows[:len(rows)-1] // a \\ ending the last row
+	}
+	switch name {
+	case "equation", "displaymath", "math", "gather", "gathered", "multline":
+		return p.gridNode(rows)
+	}
+	gap := 2
+	if string(align) == "rl" {
+		gap = 1 // a &= b: the relation follows the left side
+	}
+	m := &fnode{kind: fMatrix, rows: rows, align: align, gap: gap}
+	if f, ok := fEnvFences[name]; ok {
+		return &fnode{kind: fFence, left: f[0], right: f[1], kids: []*fnode{m}}
+	}
+	return m
 }
 
 func eachSym(n *fnode, f func(*fnode)) {
@@ -746,9 +823,9 @@ func symClass(s string) fclass {
 	switch {
 	case s == "":
 		return cOrd
-	case strings.Contains("=<>≤≥≠≈≡∼≃≅∝∈∉∋⊂⊃⊆⊇→←↔⇒⇐⇔⟹⟺↦≪≫∣⊥∥⊢⊨⩽⩾⊄⊈⊅⊉≝↑↓⟶⊷∤", s) || s == ":" || s == ":=":
+	case strings.Contains("=<>≤≥≠≈≡∼≃≅∝∈∉∋⊂⊃⊆⊇→←↔⇒⇐⇔⟹⟺↦≪≫∣⊥∥⊢⊨⩽⩾⊄⊈⊅⊉↑↓⟶∤≰≱≮≯≁≇≢∦⊊⊋⊑⊒≲≳≺≻⪯⪰≍≐≜≔≊⟵⟷⟸⟼↪↩⇌⇝⇑⇓↕↗↘↙↖", s) || s == ":" || s == ":=":
 		return cRel
-	case strings.Contains("+−-±∓×÷⋅∗⋆∘∪∩∖∧∨⊕⊗⊙⊖⊘*", s):
+	case strings.Contains("+−-±∓×÷⋅∗⋆∘∪∩∖∧∨⊕⊗⊙⊖⊘⊔⊓⊎⨿⋄·*", s):
 		return cBin
 	case s == "," || s == ";":
 		return cPunct
@@ -1129,18 +1206,22 @@ func (n *fnode) matrixBox(lv int) box {
 			colW[j] = max(colW[j], cells[i][j].width())
 		}
 	}
+	pairs := string(n.align) == "rl" // aligned rows: a &= b & c &= d
 	rows := make([]box, len(n.rows))
 	for i := range n.rows {
 		var parts []box
 		for j, c := range cells[i] {
 			if j > 0 {
 				gap := n.gap
-				if len(n.align) > 1 && j%2 == 0 {
+				if pairs && j%2 == 0 {
 					gap += 2 // between the pairs of aligned columns
 				}
 				parts = append(parts, blankBox(gap, 1))
 			}
 			a := n.align[min(j, len(n.align)-1)]
+			if pairs {
+				a = n.align[j%2]
+			}
 			parts = append(parts, padBox(c, colW[j], a))
 		}
 		rows[i] = hcat(parts...)

@@ -7,7 +7,13 @@ built-in driver. Only Python notebooks are supported.
 ## The view
 
 - Cells are drawn as boxes: `In [n]` for code, `Markdown`, `Raw`.
-- Code cells show their output in an `Out [n]` box below.
+- Code cells show their output in an `Out [n]` box below. LaTeX and
+  markdown outputs (sympy expressions, `IPython.display.Math`,
+  `Latex`, `Markdown`) are drawn as the rendered markdown view draws
+  them, formulas in two dimensions (a blank row sets off a formula of
+  several rows from the outputs around it); other outputs are shown
+  as text.
+  Markdown cells are left as written.
 - The terminal shows text only. Figures are saved in the notebook and
   shown as a placeholder; `:nbimage` opens them. LaTeX, HTML and math
   in markdown cells are shown as their source.

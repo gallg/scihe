@@ -82,7 +82,7 @@ func TestDisplayLines(t *testing.T) {
 		{"output_type": "error", "traceback": []any{"\x1b[31mTraceback\x1b[0m", "ValueError: x"}},
 		{"output_type": "display_data", "data": map[string]any{"image/png": "AAAA", "text/plain": "<Figure>"}},
 	}
-	got := DisplayLines(outs)
+	got := DisplayLines(outs, nil)
 	want := []string{"a", "b", "42", "Traceback", "ValueError: x"}
 	for i, w := range want {
 		if got[i].Text != w {
@@ -337,5 +337,31 @@ func TestBrokenFigureDoesNotPoison(t *testing.T) {
 	evs := c.until(t, "done")
 	if evs[len(evs)-1].Status != "ok" {
 		t.Fatalf("later cell failed: %+v", evs)
+	}
+}
+
+// formulas of several rows are set off by a blank line from the
+// outputs around them; one-row ones and text stay compact
+func TestDisplayLinesSeparatesFormulas(t *testing.T) {
+	latex := func(s string) map[string]any {
+		return map[string]any{"output_type": "display_data", "data": map[string]any{"text/latex": s, "text/plain": s}}
+	}
+	outs := []map[string]any{
+		{"output_type": "stream", "name": "stdout", "text": "a\n"},
+		latex("tall1"), latex("tall2"), latex("one"),
+		{"output_type": "stream", "name": "stdout", "text": "b\n"},
+	}
+	render := func(mime, text string) []string {
+		if strings.HasPrefix(text, "tall") {
+			return []string{text, "──"}
+		}
+		return []string{text}
+	}
+	var got []string
+	for _, l := range DisplayLines(outs, render) {
+		got = append(got, l.Text)
+	}
+	if s := strings.Join(got, "|"); s != "a||tall1|──||tall2|──||one|b" {
+		t.Fatalf("lines: %q", s)
 	}
 }

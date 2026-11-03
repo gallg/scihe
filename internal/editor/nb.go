@@ -84,9 +84,73 @@ func (k *kernelState) displayLines(c *notebook.Cell) []notebook.OutputLine {
 	if co, ok := k.dispCache[c.ID]; ok && co.ver == ver && co.n == len(c.Outputs) {
 		return co.lines
 	}
-	lines := notebook.DisplayLines(c.Outputs)
+	lines := notebook.DisplayLines(c.Outputs, renderOutput)
 	k.dispCache[c.ID] = cachedOutput{ver: ver, n: len(c.Outputs), lines: lines}
 	return lines
+}
+
+// nbRichMax is the largest rich output drawn; a longer one is shown
+// as its text/plain.
+const nbRichMax = 64 << 10
+
+// nbRichWidth is the width rich outputs are first laid out to, to
+// measure them.
+const nbRichWidth = 80
+
+// renderOutput draws a LaTeX or markdown output as the markdown view
+// does: formulas in two dimensions. A LaTeX output without dollars or
+// an environment is one display formula.
+func renderOutput(mime, text string) []string {
+	text = strings.TrimSpace(text)
+	if text == "" || len(text) > nbRichMax {
+		return nil
+	}
+	if mime == "text/latex" && !strings.Contains(text, "$") && !displayMathAt(text) {
+		text = "$$" + text + "$$"
+	}
+	// laid out once to measure what it holds, then as wide as that:
+	// display formulas are centred on the text, or alone at the left
+	width := 0
+	for _, r := range layoutMarkdown(text, nbRichWidth, false) {
+		lead, w := rowExtent(r.cells)
+		width = max(width, w-lead)
+	}
+	var lines []string
+	for _, r := range layoutMarkdown(text, width, false) {
+		lines = append(lines, strings.TrimRight(rowString(r.cells), " "))
+	}
+	for len(lines) > 0 && lines[len(lines)-1] == "" {
+		lines = lines[:len(lines)-1]
+	}
+	if len(lines) == 0 {
+		return nil
+	}
+	cut := nbRichMax // the blanks every row starts with
+	for _, l := range lines {
+		if l != "" {
+			cut = min(cut, len(l)-len(strings.TrimLeft(l, " ")))
+		}
+	}
+	for i, l := range lines {
+		if l != "" {
+			lines[i] = l[cut:]
+		}
+	}
+	return lines
+}
+
+// rowExtent returns the blank columns a row starts with and its width
+// without the blanks after it.
+func rowExtent(cells []mcell) (int, int) {
+	w := len(cells)
+	for w > 0 && cells[w-1].s == " " {
+		w--
+	}
+	lead := 0
+	for lead < w && cells[lead].s == " " {
+		lead++
+	}
+	return lead, w
 }
 
 type nbRequest struct {
@@ -1008,7 +1072,7 @@ func exNbOutput(e *Editor, a *exArgs) error {
 		return err
 	}
 	var lines []string
-	for _, l := range notebook.DisplayLines(outs) {
+	for _, l := range notebook.DisplayLines(outs, renderOutput) {
 		lines = append(lines, l.Text)
 	}
 	if len(lines) == 0 {

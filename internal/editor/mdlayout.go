@@ -34,8 +34,9 @@ type mdImg struct {
 }
 
 type mdLayout struct {
-	wrap bool
-	list int // depth of the list being laid out (its bullet)
+	wrap    bool
+	list    int                // depth of the list being laid out (its bullet)
+	noClose map[mdCloseKey]int // display formulas found unclosed (see displayMath)
 }
 
 // mdNoWrap is the width given to text when lines are not wrapped.
@@ -76,9 +77,14 @@ var (
 	mdTaskBoxRe = regexp.MustCompile(`^\[([ xX])\](?: +|$)`)
 )
 
+// mdEnvRe matches a LaTeX environment opening a display formula
+// without dollars (\begin{equation}, \begin{align*}…), as Jupyter reads it.
+var mdEnvRe = regexp.MustCompile(`^\\begin\{([A-Za-z]+\*?)\}`)
+
 // displayMathAt reports a line opening a display formula.
 func displayMathAt(l string) bool {
-	return strings.HasPrefix(strings.TrimLeft(l, " "), "$$")
+	t := strings.TrimLeft(l, " ")
+	return strings.HasPrefix(t, "$$") || mdEnvRe.MatchString(t)
 }
 
 // blockStart reports a line that ends a paragraph.
@@ -217,27 +223,50 @@ func (L *mdLayout) headingLines(lines []string, srcs []int, level, width, under 
 // displayMath lays out the display formula opened on line i, centred;
 // the text after it on its last line is read on.
 func (L *mdLayout) displayMath(lines []string, srcs []int, i, width int) ([]mrow, int, bool) {
-	text := []rune(strings.Join(lines[i:], "\n"))
-	at := 0
-	for at < len(text) && text[at] == ' ' {
-		at++
+	first := strings.TrimLeft(lines[i], " ")
+	open, close := "$$", "$$"
+	if m := mdEnvRe.FindStringSubmatch(first); m != nil {
+		open, close = "", `\end{`+m[1]+`}` // the environment is part of the formula
 	}
-	end, ok := findDelim(text, at+2, "$$")
-	if !ok {
-		return nil, 0, false
+	key := mdCloseKey{&lines[0], close}
+	if j, ok := L.noClose[key]; ok && i >= j {
+		return nil, 0, false // not closed after a line above either
 	}
-	content := string(text[at+2 : end])
-	last := i + strings.Count(string(text[:end]), "\n")
-	rest := string(text[end+2:])
-	if k := strings.IndexByte(rest, '\n'); k >= 0 {
-		rest = rest[:k]
+	var body []rune // from the opening delimiter
+	for last := i; last < len(lines); last++ {
+		rs, start := []rune(lines[last]), 0
+		if last == i {
+			rs, start = []rune(first), max(len(open), 1)
+		}
+		end, ok := findDelim(rs, start, close)
+		if !ok {
+			body = append(append(body, rs...), '\n')
+			continue
+		}
+		body = append(body, rs[:end+len(close)]...)
+		from, to := len(open), len(body)-len(close) // between the dollars
+		if open == "" {
+			to = len(body) // \begin{…} … \end{…}
+		}
+		rows := L.formulaRows(string(body[from:to]), srcs[i], width)
+		if rest := string(rs[end+len(close):]); strings.TrimSpace(rest) != "" {
+			lines[last] = rest
+			return rows, last, true
+		}
+		return rows, last + 1, true
 	}
-	rows := L.formulaRows(content, srcs[i], width)
-	if strings.TrimSpace(rest) != "" {
-		lines[last] = rest
-		return rows, last, true
+	if L.noClose == nil {
+		L.noClose = map[mdCloseKey]int{}
 	}
-	return rows, last + 1, true
+	L.noClose[key] = i
+	return nil, 0, false
+}
+
+// mdCloseKey is a closing delimiter missing from the lines of a block
+// from some line on.
+type mdCloseKey struct {
+	lines *string
+	close string
 }
 
 // formulaRows lays out a display formula centred, or on one line when
