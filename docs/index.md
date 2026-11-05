@@ -11,6 +11,7 @@ Scihe is a modal terminal editor for working with data and code.
 | [Configuration](configuration.md) | `config.toml`, options, key remapping |
 | [REPLs](repls.md) | Evaluating code |
 | [Notebooks](notebooks.md) | Jupyter `.ipynb` files |
+| [Formulas](formulas.md) | Typeset formulas: terminals, tmux, size, the font |
 | [Data viewer](data-viewer.md) | CSV/TSV tables and statistics |
 | [File explorer](file-explorer.md) | Directory and buffer lists |
 | [Git](git.md) | The git interface |

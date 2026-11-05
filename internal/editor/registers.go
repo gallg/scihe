@@ -87,6 +87,7 @@ func (rs *Registers) Yank(r rune, reg Register) {
 	if r == '_' {
 		return
 	}
+	reg.Text = gfxText(reg.Text) // formulas of the rendered view as text
 	if rs.store(r, reg) {
 		rs.linkUnnamed(r)
 		return

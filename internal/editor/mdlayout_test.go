@@ -203,8 +203,8 @@ func TestMarkdownTableFitsTheWidth(t *testing.T) {
 	if rows[0].src != 0 || rows[2].src != 1 || rows[4].src != 2 || rows[len(rows)-2].src != 4 {
 		t.Errorf("source lines: %v", rows)
 	}
-	// rows of one line each need no rules
-	if got := layoutText("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |", 36, true); got != "┌───┬───┐\n│ a │ b │\n├───┼───┤\n│ 1 │ 2 │\n│ 3 │ 4 │\n└───┴───┘" {
+	// rows of one line each need no rules: a blank row sets them apart
+	if got := layoutText("| a | b |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |", 36, true); got != "┌───┬───┐\n│ a │ b │\n├───┼───┤\n│ 1 │ 2 │\n│   │   │\n│ 3 │ 4 │\n└───┴───┘" {
 		t.Errorf("one-line rows:\n%s", got)
 	}
 	// unwrapped, a table keeps its natural width

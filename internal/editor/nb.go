@@ -46,6 +46,7 @@ type kernelState struct {
 type cachedOutput struct {
 	ver   int
 	n     int
+	gen   int // of the typeset formulas (mathGen)
 	lines []notebook.OutputLine
 }
 
@@ -81,11 +82,11 @@ func (k *kernelState) displayLines(c *notebook.Cell) []notebook.OutputLine {
 		k.dispCache = map[string]cachedOutput{}
 	}
 	ver := k.outVer[c.ID]
-	if co, ok := k.dispCache[c.ID]; ok && co.ver == ver && co.n == len(c.Outputs) {
+	if co, ok := k.dispCache[c.ID]; ok && co.ver == ver && co.n == len(c.Outputs) && co.gen == mathGen() {
 		return co.lines
 	}
 	lines := notebook.DisplayLines(c.Outputs, renderOutput)
-	k.dispCache[c.ID] = cachedOutput{ver: ver, n: len(c.Outputs), lines: lines}
+	k.dispCache[c.ID] = cachedOutput{ver: ver, n: len(c.Outputs), gen: mathGen(), lines: lines}
 	return lines
 }
 
@@ -1072,9 +1073,11 @@ func exNbOutput(e *Editor, a *exArgs) error {
 		return err
 	}
 	var lines []string
-	for _, l := range notebook.DisplayLines(outs, renderOutput) {
-		lines = append(lines, l.Text)
-	}
+	withoutMathImages(func() { // a buffer of text
+		for _, l := range notebook.DisplayLines(outs, renderOutput) {
+			lines = append(lines, l.Text)
+		}
+	})
 	if len(lines) == 0 {
 		return errors.New("cell has no output")
 	}

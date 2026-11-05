@@ -57,6 +57,9 @@ func layoutMarkdown(src string, width int, wrap bool) []mrow {
 		rows = append(rows, mrow{cells: cellsOf(lines[i], msDim), src: i})
 	}
 	rows = append(rows, L.blocks(lines[start:], srcs[start:], max(width, 8))...)
+	if mathImages != nil {
+		rows = mathImages.spaceFormulas(rows)
+	}
 	if len(rows) == 0 {
 		rows = append(rows, mrow{})
 	}
@@ -273,7 +276,10 @@ type mdCloseKey struct {
 // it is wider than the window.
 func (L *mdLayout) formulaRows(content string, src, width int) []mrow {
 	n := parseFormula(content)
-	b := formulaBox(n)
+	b := mathFormulaBox(content, n, true)
+	if b.width() > width && isTypeset(b) {
+		b = formulaBox(n) // typeset, too wide: as text
+	}
 	if b.width() > width && L.wrap {
 		atoms := []inl{{b: textBox(n.linear(), msMath), src: src}}
 		return L.flow(atoms, width)
@@ -534,6 +540,15 @@ func (L *mdLayout) table(lines []string, srcs []int, width int) []mrow {
 		return cellsOf(l+strings.Join(parts, m)+r, msBorder)
 	}
 	bar := cellsOf("│", msBorder)
+	// a blank row between rows of one line each, the bars going on
+	gap := func(src int) mrow {
+		row := mrow{src: src}
+		row.cells = append(row.cells, bar...)
+		for _, w := range colW {
+			row.cells = append(append(row.cells, blankRow(w+2)...), bar...)
+		}
+		return row
+	}
 	// the cells laid out in their columns, and the height of each row
 	laid := make([][][]mrow, len(rows))
 	heights := make([]int, len(rows))
@@ -556,6 +571,8 @@ func (L *mdLayout) table(lines []string, srcs []int, width int) []mrow {
 			out = append(out, mrow{cells: border("├", "┼", "┤"), src: srcs[1]})
 		case ri > 1 && multi:
 			out = append(out, mrow{cells: border("├", "┼", "┤"), src: rc.src})
+		case ri > 1:
+			out = append(out, gap(rows[ri-1].src))
 		}
 		cells := laid[ri]
 		for k := 0; k < heights[ri]; k++ {
@@ -943,6 +960,18 @@ func (p *inlParser) add(a inl, i int) {
 // raised is s raised as a superscript (lowered with sup false) by one
 // row, in the size of the text.
 func raised(s string, st mdStyle, sup bool) inl {
+	if g := mathImages; g != nil { // typeset: smaller, on the line
+		n := &fnode{kind: fScript, kids: []*fnode{frow()}}
+		key := "_"
+		if sup {
+			n.sup, key = fsym(s, cText), "^"
+		} else {
+			n.sub = fsym(s, cText)
+		}
+		if b, ok := g.formula(key+`{\text{`+s+`}}`, n, false); ok {
+			return inl{b: b, alt: script(s, sup)}
+		}
+	}
 	t := textBox(s, st)
 	if sup {
 		return inl{b: box{rows: [][]mcell{t.rows[0], blankRow(t.width())}, base: 1}, alt: script(s, true)}
@@ -1098,7 +1127,7 @@ func inlineDollar(rs []rune, i int) int {
 // formula lays out a formula met at i.
 func (p *inlParser) formula(content string, i int, display bool) {
 	n := parseFormula(content)
-	p.add(inl{b: formulaBox(n), alt: n.linear(), alone: display}, i)
+	p.add(inl{b: mathFormulaBox(content, n, display), alt: n.linear(), alone: display}, i)
 	if display {
 		p.space = true
 	}

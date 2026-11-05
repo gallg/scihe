@@ -1,5 +1,8 @@
 MIT License
 
+(The math font in internal/editor/fonts/ is not covered by this license: it
+is under the GUST Font License, see internal/editor/fonts/README-Scihe-Math.md.)
+
 Copyright (c) 2026 The Scihe authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

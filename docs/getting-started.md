@@ -15,6 +15,7 @@ Optional tools, used when present:
 | `clojure` or `lein` | Clojure nREPL |
 | `wl-copy`, `xclip` or `xsel` | System clipboard |
 | `xdg-open` (`open` on macOS) | Opening images and URLs |
+| Ghostty, kitty or Konsole | Typeset formulas, as images; elsewhere they are text ([Formulas](formulas.md), also for tmux) |
 
 ## Install
 

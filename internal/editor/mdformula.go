@@ -69,6 +69,7 @@ type fnode struct {
 	tight       bool   // fRow: a script or limit, set without spaces (k=1)
 	sp          bool   // written after a blank, kept between terms (x dx)
 	auto        bool   // fFence: plain brackets, grown only around what needs it
+	disp        bool   // fMatrix: rows of a display (equation, gather); fFrac: \dfrac: in display style
 }
 
 func fsym(s string, c fclass) *fnode { return &fnode{kind: fSym, cls: c, text: s} }
@@ -206,7 +207,11 @@ func parseFormula(src string) *fnode {
 	rs := []rune(src)
 	p := &fparser{toks: ftokenize(rs), rs: rs}
 	p.lim = len(p.toks)
-	return p.body()
+	n := p.body()
+	if n.kind == fMatrix {
+		n.disp = true // a \\ in a display formula
+	}
+	return n
 }
 
 func (p *fparser) cmd(t ftok, name string) bool { return t.k == 'c' && t.s == name }
@@ -621,12 +626,12 @@ func (p *fparser) command(name string) *fnode {
 		return frow()
 	}
 	if w, ok := fSpaces[name]; ok {
-		return &fnode{kind: fSpace, gap: w}
+		return &fnode{kind: fSpace, gap: w, text: name}
 	}
 	switch name {
 	case "frac", "dfrac", "tfrac", "cfrac":
 		a := p.arg()
-		return &fnode{kind: fFrac, kids: []*fnode{a, p.arg()}}
+		return &fnode{kind: fFrac, kids: []*fnode{a, p.arg()}, disp: name == "dfrac" || name == "cfrac"}
 	case "binom", "dbinom", "tbinom":
 		a := p.arg()
 		m := &fnode{kind: fMatrix, rows: [][]*fnode{{a}, {p.arg()}}, align: []byte{'c'}}
@@ -787,7 +792,11 @@ func (p *fparser) env() *fnode {
 	}
 	switch name {
 	case "equation", "displaymath", "math", "gather", "gathered", "multline":
-		return p.gridNode(rows)
+		n := p.gridNode(rows)
+		if n.kind == fMatrix {
+			n.disp = true
+		}
+		return n
 	}
 	gap := 2
 	if string(align) == "rl" {

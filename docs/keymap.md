@@ -12,6 +12,7 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space /` | Grep project |
 | `Space :` | Command history |
 | `Space ?` | All key bindings |
+| `Ctrl-l` | Redraw the screen; typeset formulas are sent to the terminal again |
 
 ## Clipboard
 
@@ -259,11 +260,17 @@ follows it. Code and YAML front matter are left as written.
 - **Text**: emphasis, inline code, strikethrough and links show their
   style without markers, headings stand out (levels 1 and 2
   underlined), `<sup>`, `<sub>`, Unicode super- and subscripts and
-  footnote marks (`[^1]`) are raised or lowered a row, in the size of
-  the text. HTML comments are hidden; images read `▣ alt`.
+  footnote marks (`[^1]`) are raised or lowered: typeset on their line
+  where formulas are typeset, otherwise a row, in the size of the text. HTML comments are hidden; images read `▣ alt`.
+- **Typeset formulas**: in Ghostty, kitty and Konsole formulas are
+  typeset as LaTeX does, with its rules and its built-in font, and shown
+  as images in the text; inline ones fit in their line. Inside tmux
+  scihe turns `allow-passthrough` on for its own pane; Konsole works
+  outside tmux only. Terminals, tmux, size, spacing and the font:
+  [Formulas](formulas.md). Elsewhere the text layout below is used.
 - **Formulas** (`$…$` or `$ … $` inline, `$$…$$` display, and
   `\begin{equation}…\end{equation}` or any other environment opening a
-  line, as Jupyter reads them) are laid out
+  line, as Jupyter reads them) are laid out as text
   in two dimensions: fractions stacked over a rule, scripts raised and
   lowered, limits above and below `∑` and `lim`, integrals and brackets
   as tall as what they enclose, roots with their bar, matrices, cases
@@ -297,7 +304,8 @@ follows it. Code and YAML front matter are left as written.
   give way and their cells wrap. Formulas in cells are rendered. When a
   row takes several lines (a formula, wrapped text) a rule separates
   every row and a double rule (`╞═╪═╡`) marks the header, so each cell
-  reads as one; tables of one-line rows stay compact. Write a pipe in a
+  reads as one; in tables of one-line rows a blank row sets the rows
+  apart. Write a pipe in a
   cell as `\|` (in a formula, use `\lvert x \rvert`). A table ends at a blank
   line.
 - **Lists** hang their text after `•` (`◦`, `▪` when nested) or the

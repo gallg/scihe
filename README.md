@@ -28,14 +28,15 @@ manage: just use your own terminal multiplexer.
 - **REPLs** — Scheme, Clojure (nREPL), Python and any other REPL you
   configure; evaluate forms, cells or lines in the buffer with inline `=> result`
 - **Notebooks** — open, edit and run `.ipynb` files, no Jupyter install needed;
-  LaTeX outputs (sympy, `IPython.display.Math`) are drawn as formulas.
+  LaTeX outputs (sympy, `IPython.display.Math`) are typeset as formulas.
 - **Data viewer** — CSV/TSV as an aligned table: sort, filter, edit,
   mark cells, compute statistics or transform your data with built-in or custom functions.
 - **Markdown** — formatting keys (emphasis, links, headings, lists, tables,
   table of contents, super- and subscripts, formulas, a symbol picker), a
-  rendered view laid out as a page: formulas in two dimensions (written in
-  LaTeX), tables fitted to the window, alerts,
-  quotes, lists; images opened in your viewer.
+  rendered view laid out as a page: formulas written in LaTeX and typeset
+  as LaTeX does (as images in Ghostty, kitty and Konsole; in two dimensions
+  as text elsewhere), tables fitted to the window, alerts,
+  quotes, lists; images opened in your viewer. See [Formulas](docs/formulas.md).
 - **Git** — built-in, simple to use git support.
 - **File explorer** — dired-style: mark, copy, paste, move, rename, delete, create.
 - **Auto-reload** — files changed on disk are detected as you work;
@@ -81,8 +82,23 @@ Optional tools, used when present:
 | `clojure` / `lein` | Clojure nREPL jack-in |
 | `wl-copy` / `xclip` / `xsel` | system clipboard |
 | `xdg-open` (`open` on macOS) | opening images and URLs |
+| Ghostty, kitty or Konsole | typeset formulas, as images (elsewhere they are text); inside tmux, see [Formulas](docs/formulas.md#tmux) |
 
 
 ## License
 
 Scihe is released under the [MIT License](LICENSE).
+
+### Fonts
+
+Scihe has a math font built in to typeset formulas: **Scihe Math**,
+[Latin Modern Math](https://ctan.org/pkg/lm-math) with its font names
+changed. It has its own license, the **GUST Font License**, not the MIT
+License. Its files are in [`internal/editor/fonts/`](internal/editor/fonts/):
+
+| File | What it is |
+|------|------------|
+| [`README-Scihe-Math.md`](internal/editor/fonts/README-Scihe-Math.md) | the authors, the copyright, what was changed from the original and where to get it |
+| [`MANIFEST-Scihe-Math.md`](internal/editor/fonts/MANIFEST-Scihe-Math.md) | the manifest: the font names and the files of the font |
+| [`GUST-FONT-LICENSE.txt`](internal/editor/fonts/GUST-FONT-LICENSE.txt) | the license of the font |
+| `scihe-math.otf` | the font |

@@ -17,7 +17,7 @@ Some tests use `python3` and `chez` when they are installed.
 
 | Package | Contents |
 |---------|----------|
-| `internal/editor` | Modes, keys, commands, pickers, git, table and markdown views |
+| `internal/editor` | Modes, keys, commands, pickers, git, table and markdown views, typeset formulas |
 | `internal/buffer` | Text buffer and file I/O |
 | `internal/keymap` | Key parsing and the which-key tree |
 | `internal/syntax` | Syntax highlighting and themes |
@@ -26,6 +26,24 @@ Some tests use `python3` and `chez` when they are installed.
 | `internal/notebook` | `.ipynb` files, kernel and `driver.py` |
 | `internal/table` | Table parsing, statistics, expressions |
 | `internal/clipboard` | System clipboard |
+
+## Formulas
+
+Formulas are parsed once (`mdformula.go`, which also lays them out as
+text) and typeset from the same tree when the terminal shows images:
+
+| File | Contents |
+|------|----------|
+| `mathfont.go` | The built-in font and its OpenType `MATH` table (constants, larger variants, glyph assemblies) |
+| `mathtype.go` | TeX's layout rules in ems, and drawing into a bitmap |
+| `termgfx.go` | The kitty graphics protocol: detection, tmux, sending images, placeholders and direct placement, the cache of formulas |
+
+`golang.org/x/image` reads and draws the font. The font is
+`internal/editor/fonts/scihe-math.otf`, Latin Modern Math with its names
+changed for its license; how it was made is in
+[`README-Scihe-Math.md`](../internal/editor/fonts/README-Scihe-Math.md).
+Keep those files, the manifest and the license together, and update them
+if the font changes.
 
 ## Integration tests
 

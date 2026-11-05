@@ -373,7 +373,8 @@ var richMimes = []string{"text/latex", "text/markdown"}
 // text/plain.
 func DisplayLines(outs []map[string]any, render func(mime, text string) []string) []OutputLine {
 	var out []OutputLine
-	sep := false // after a formula of several rows: a blank before what follows
+	sep := false  // after a formula of several rows: a blank before what follows
+	rich := false // the last output was drawn by render
 	blank := func(kind string) {
 		if sep && len(out) > 0 {
 			out = append(out, OutputLine{"", kind})
@@ -382,6 +383,7 @@ func DisplayLines(outs []map[string]any, render func(mime, text string) []string
 	}
 	add := func(text, kind string) {
 		blank(kind)
+		rich = false
 		text = ansiRe.ReplaceAllString(text, "")
 		text = strings.TrimSuffix(text, "\n")
 		for _, l := range strings.Split(text, "\n") {
@@ -412,7 +414,8 @@ func DisplayLines(outs []map[string]any, render func(mime, text string) []string
 				}
 			}
 			if lines := richLines(data, render); lines != nil {
-				sep = sep || len(lines) > 1 // set off from its neighbours
+				sep = sep || len(lines) > 1 || rich // set off from its neighbours and other formulas
+				rich = true
 				blank(kind)
 				for _, l := range lines {
 					out = append(out, OutputLine{l, kind})

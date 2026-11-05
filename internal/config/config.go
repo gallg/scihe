@@ -67,6 +67,8 @@ type Config struct {
 	Scheme           string                     `toml:"scheme"`
 	ClojureJackIn    string                     `toml:"clojure_jack_in"`
 	MaxOutputLines   int                        `toml:"notebook_max_output_lines"`
+	MathImages       bool                       `toml:"math_images"` // typeset formulas in terminals that show images
+	MathScale        float64                    `toml:"math_scale"`  // their size, times the text's
 	Options          Options                    `toml:"options"`
 	Filetypes        map[string]FiletypeOptions `toml:"filetype"`
 	// Keys maps mode ("normal", "visual", "insert") to key -> action.
@@ -262,6 +264,8 @@ func Default() *Config {
 		Scheme:           "chez",
 		ClojureJackIn:    "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.3.0\"}}}' -M -m nrepl.cmdline",
 		MaxOutputLines:   30,
+		MathImages:       true,
+		MathScale:        1.2,
 		Options: Options{
 			TabStop: 4, ShiftWidth: 4, ExpandTab: true, Number: true,
 			CursorLine: true, ScrollOff: 4, IgnoreCase: true, SmartCase: true,
@@ -384,6 +388,10 @@ func Load(path string) (*Config, error) {
 	}
 	if c.MaxOutputLines <= 0 {
 		c.MaxOutputLines = 30
+	}
+	if c.MathScale < 0.5 || c.MathScale > 3 {
+		c.Warnings = append(c.Warnings, fmt.Sprintf("math_scale must be between 0.5 and 3: %g ignored", c.MathScale))
+		c.MathScale = 1.2
 	}
 	return c, nil
 }

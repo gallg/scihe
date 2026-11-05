@@ -452,6 +452,9 @@ func runeWidth(r rune, vc, ts int) int {
 	if r < 32 || r == 0x7f {
 		return 2 // shown as ^X / ^?
 	}
+	if r > gfxBase && r <= gfxBase+gfxMaxID {
+		return 1 // a cell of a typeset formula (ambiguous width in East Asian locales)
+	}
 	w := runewidth.RuneWidth(r)
 	if w == 0 {
 		return 1

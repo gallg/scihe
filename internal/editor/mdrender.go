@@ -26,6 +26,7 @@ type mdRender struct {
 	lines   []int           // the source line of each row
 	text    []bool          // rows where a source line's text starts (not its raised scripts)
 	imgs    map[int][]mdImg // images per row, in runes
+	gen     int             // of the typeset formulas laid out (mathGen)
 }
 
 func isMarkdown(b *buffer.Buffer) bool {
@@ -114,7 +115,7 @@ func (e *Editor) updateRenders() {
 		if width == 0 {
 			width = r.width // not shown: keep the layout
 		}
-		if r.version != r.src.Version || width != r.width || e.options(r.src).Wrap != r.wrap || e.theme != r.theme {
+		if r.version != r.src.Version || width != r.width || e.options(r.src).Wrap != r.wrap || e.theme != r.theme || r.gen != mathGen() {
 			e.refreshRender(r, width)
 		}
 	}
@@ -158,7 +159,7 @@ func (e *Editor) refreshRender(r *mdRender, width int) {
 			}
 		})
 	}
-	r.width, r.wrap, r.theme = width, e.options(r.src).Wrap, e.theme
+	r.width, r.wrap, r.theme, r.gen = width, e.options(r.src).Wrap, e.theme, mathGen()
 	rows := layoutMarkdown(r.src.Text(), width, r.wrap)
 	lines := make([]string, len(rows))
 	spans := make([][]syntax.Span, len(rows))

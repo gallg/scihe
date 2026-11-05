@@ -292,7 +292,13 @@ func (e *Editor) setupKeymaps() {
 	}))
 	nm("<C-g>", "file info", action(func(c *ctx) { c.e.fileInfo() }))
 	nm("g<C-g>", "word count", action(func(c *ctx) { c.e.wordCount() }))
-	nm("<C-l>", "redraw", action(func(c *ctx) { c.e.screen.Sync(); c.e.search.noHL = true }))
+	nm("<C-l>", "redraw", action(func(c *ctx) {
+		c.e.screen.Sync()
+		c.e.search.noHL = true
+		if mathImages != nil {
+			mathImages.resend() // the terminal may have lost them (tmux attached elsewhere)
+		}
+	}))
 	nm("<C-z>", "suspend", action(func(c *ctx) { c.e.suspend() }))
 	nm("<Esc>", "cancel", action(func(c *ctx) {}))
 	nm("ZZ", "write and quit", action(func(c *ctx) { c.e.execEx("x") }))

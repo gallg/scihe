@@ -207,6 +207,7 @@ func New(screen tcell.Screen, cfg *config.Config) *Editor {
 	for _, w := range cfg.Warnings {
 		e.warnf("config: %s", w)
 	}
+	e.initMathImages()
 	return e
 }
 
@@ -285,6 +286,9 @@ func (e *Editor) Run() {
 		}
 	}
 	e.shutdown()
+	if mathImages != nil {
+		mathImages.close()
+	}
 }
 
 // drainAsync runs all posted work in FIFO order on the main loop.
@@ -371,6 +375,10 @@ func (e *Editor) handleEvent(ev tcell.Event) {
 			e.pasteText(e.pasteBuf.String())
 		}
 	case *tcell.EventResize:
+		if mathImages != nil {
+			mathImages.unplace() // the screen is cleared: placed again after
+		}
+		e.syncMathImages(true)
 		e.screen.Sync()
 	case *tcell.EventMouse:
 		e.handleMouse(ev)
@@ -702,6 +710,9 @@ func (e *Editor) suspend() {
 	}
 	syscall.Kill(0, syscall.SIGTSTP)
 	e.screen.Resume()
+	if mathImages != nil {
+		mathImages.resend() // the terminal may have dropped them with its screen
+	}
 }
 
 // GotoLine moves the cursor to a 1-based line (for +N on the command line).
@@ -716,6 +727,9 @@ func (e *Editor) GotoLine(n int) {
 // EmergencySave writes modified file buffers to recovery files after a
 // crash (the terminal is already restored) and stops the child processes.
 func (e *Editor) EmergencySave() {
+	if mathImages != nil {
+		mathImages.close() // the terminal's images, tmux's passthrough
+	}
 	for _, n := range e.saveRecovery() {
 		fmt.Fprintln(os.Stderr, n)
 	}

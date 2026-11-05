@@ -6,7 +6,10 @@ Open this file in scihe and press `Space m r` to toggle the rendered view
 
 Formulas are written in LaTeX between `$…$` (inline) or `$$…$$`
 (display); a line opening an environment (`\begin{align}`) starts a
-display formula too. Sections 1–6 are formulas, 7–12 tables, quotes,
+display formula too. In Ghostty, kitty and Konsole they are typeset as
+LaTeX typesets them, as images in the text: inline formulas fit in
+their line, display formulas take the rows they need. Other terminals
+lay them out as text, scripts a row above or below. Sections 1–6 are formulas, 7–12 tables, quotes,
 alerts, rules and task items, 13 scientific text, and 14 a piece of a
 manuscript to try it all together.
 
@@ -52,10 +55,12 @@ f(x) &= (x + 1)^2 \\
 
 ## 3. Fractions, roots and brackets
 
-- Fractions: $\frac{1}{2}$, $\frac{a + b}{c}$, $\frac12$, $\dfrac{a}{b}$, nested $ \frac{\frac{a}{b}}{c} $
+- Fractions: $\frac{1}{2}$, $\frac{a + b}{c}$, $\frac12$, nested $ \frac{\frac{a}{b}}{c} $
+- In display style, larger, the line taller: $\dfrac{a}{b}$
 - Roots: $\sqrt{2}$, $\sqrt{x^2 + y^2}$, $\sqrt[3]{8}$, $\sqrt[n]{x}$
-- Brackets that grow: $\left( \frac{a}{b} \right)$, $(\frac{1}{2})^2$, $\left[ \frac{x}{2} \right]$, $\left\{ a \right.$
-- Brackets that stay on the line: $p(x_i \mid \theta)$, $(X^T X)^{-1}$
+- Brackets that grow with `\left` and `\right`: $\left( \frac{a}{b} \right)$, $\left[ \frac{x}{2} \right]$, $\left\{ a \right.$
+- Plain brackets keep their size, as in LaTeX (as text they grow
+  around a fraction): $(\frac{1}{2})^2$, $p(x_i \mid \theta)$, $(X^T X)^{-1}$
 - Absolute value, norm, floor, ceiling: $\lvert x \rvert$, $\lVert v \rVert$, $\lfloor x \rfloor$, $\lceil x \rceil$
 
 ## 4. Sums, integrals and limits
@@ -72,8 +77,8 @@ $$
 \iint_{D} f(x, y)\,dx\,dy
 $$
 
-Scripts are set compactly: the exponent of the normal density stays on
-one row.
+Scripts are set smaller: the exponent of the normal density is in the
+script sizes (as text, it stays on one row).
 
 $$
 f(x) = \frac{1}{\sigma \sqrt{2\pi}} e^{-\frac{(x - \mu)^2}{2\sigma^2}}
@@ -273,8 +278,9 @@ A plain list stays as written:
 
 ## 13. Scientific text
 
-Unicode scripts are raised in the view: H₂O, E = mc², the 1<sup>st</sup>
-and 2<sub>nd</sub> terms, a footnote.[^1] Type them with `Space m ^` and
+Unicode scripts, `<sup>`, `<sub>` and footnote marks are set smaller,
+raised or lowered on their line (as text, a row above or below): H₂O,
+E = mc², the 1<sup>st</sup> and 2<sub>nd</sub> terms, a footnote.[^1] Type them with `Space m ^` and
 `Space m _` (on the character, the number or a selection), and Greek
 letters or symbols with `Space m g`, or `Ctrl-k` in insert mode.
 `Space m f` puts `$…$` around a word, `Space m F` opens a `$$` block.

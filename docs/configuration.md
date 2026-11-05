@@ -31,6 +31,8 @@ python = "python3"
 scheme = "chez"
 clojure_jack_in = "clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version \"1.3.0\"}}}' -M -m nrepl.cmdline"
 notebook_max_output_lines = 30
+math_images = true
+math_scale = 1.2
 
 [options]
 tabstop = 4
@@ -65,6 +67,8 @@ colorbrackets = false
 | `scheme` | Scheme REPL program |
 | `clojure_jack_in` | Command that starts an nREPL server |
 | `notebook_max_output_lines` | Output lines shown per notebook cell |
+| `math_images` | Typeset formulas as images in terminals that show them (Ghostty, kitty, Konsole); `false` keeps them as text. See [Formulas](formulas.md) |
+| `math_scale` | Size of typeset formulas, times the text (0.5 to 3); scripts never go below 0.6 of it; inline ones are made smaller, down to the size of the text, to fit in their line |
 
 Choosing a theme (`Space t t`) or toggling transparency (`Space t T`)
 updates the file and keeps your comments.

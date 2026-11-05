@@ -3,6 +3,44 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.3 — 2026-11-05
+
+### Added
+- Formulas are typeset as LaTeX typesets them, in terminals that show
+  images (Ghostty and kitty, with the Unicode placeholders of the
+  kitty graphics protocol; Konsole, with images placed on their cells):
+  TeX's rules with the MATH table of Scihe Math, the font built in:
+  Latin Modern Math with its names changed, under the GUST Font License
+  (see the README), so scripts, limits and fractions are set in smaller
+  sizes instead of whole rows of text, roots and delimiters are drawn
+  as tall as they need, and a line is as tall as its formula. In the
+  rendered markdown view and in notebook outputs. `math_scale` sets
+  their size (1.2 times the text); scripts keep at least 0.6 of it.
+  Inline formulas fit in their line, made smaller down to the size of
+  the text if need be. Unicode scripts, `<sup>`, `<sub>` and footnote
+  marks in the text are set the same way, on their line. Rows of
+  different formulas that would touch (consecutive lines, list items,
+  table rows) are set off by a blank row; the bars of tables and
+  quotes go on through it.
+  `math_images = false` keeps the text layout, which other terminals
+  use, as do formulas with a character the font lacks.
+- Inside tmux the editor turns `allow-passthrough` on for its own pane
+  while it runs, and back as it was on exit (also after a crash); it
+  needs tmux to pass RGB colours to the terminal. Editors in several
+  panes keep their images apart. `Ctrl-l` sends the images again.
+- Yanking from the rendered view copies typeset formulas as text on one
+  line (`E = mc²`); `:nboutput` shows outputs as text.
+- A [Formulas](formulas.md) page: terminals, tmux, size and spacing,
+  the font and its license.
+
+### Changed
+- Tables in the rendered view set their rows of one line apart with a
+  blank row (the bars going on through it), so they are easier to read.
+- Notebooks: consecutive LaTeX or markdown outputs are set off by a
+  blank row.
+- `\dfrac` and `\cfrac` set their fraction in display style, as in
+  LaTeX (typeset formulas).
+
 ## 0.2.2 — 2026-11-03
 
 ### Added

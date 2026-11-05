@@ -62,6 +62,7 @@ func (e *Editor) draw() {
 	if sw <= 0 || sh <= 0 {
 		return
 	}
+	e.syncMathImages(false)
 	// table views depend on window sizes, so lay out first
 	e.layout(0, 0, sw, max(sh-1, 1))
 	e.updateRenders()
@@ -91,7 +92,18 @@ func (e *Editor) draw() {
 		e.drawPicker(sw, sh)
 	}
 	e.placeCursor(sw, sh)
+	if mathImages != nil {
+		mathImages.flush() // the images before the cells showing them
+	}
 	s.Show()
+	if mathImages != nil {
+		// Konsole: on the cells now drawn, unless a popup covers them
+		mathImages.check = func(x, y int, st tcell.Style) bool {
+			r, _, cst, _ := s.GetContent(x, y)
+			return r == ' ' && cst == st
+		}
+		mathImages.place()
+	}
 }
 
 func (e *Editor) placeCursor(sw, sh int) {
@@ -294,6 +306,8 @@ func (e *Editor) drawWindow(w *Window) {
 	h := w.textHeight()
 	sel := e.selectionFor(w)
 	active := w == e.win
+	gfx := mathImages != nil && e.renders[b.ID] != nil // typeset formulas in the view
+	imgShown := false
 	w.curX, w.curY = -1, -1
 	// the bracket pair at the cursor (normal and insert mode); in insert
 	// mode the cursor is a bar, so the bracket it touches is marked too
@@ -480,6 +494,20 @@ func (e *Editor) drawWindow(w *Window) {
 				case r >= 0x80 && r < 0xa0: // C1 controls never reach the terminal
 					put(vc, '?', th.NonText.Background(bgOf(st)))
 				default:
+					if gfx {
+						var id int
+						if r, st, id = gfxCell(r, st); id != 0 {
+							// a row of an image shows whole, from its first cell
+							if i == seg.start || line[i-1] != line[i] {
+								imgShown = vc >= left && (i == 0 || line[i-1] != line[i])
+							}
+							if !imgShown {
+								r = ' '
+							} else if vc >= left && vc+rw-left <= textW {
+								mathImages.at(id, w.x+gw+vc-left, y, st)
+							}
+						}
+					}
 					if vc >= left && vc+rw-left <= textW {
 						s.SetContent(w.x+gw+vc-left, y, r, nil, st)
 					}
@@ -593,10 +621,17 @@ func drawText(s tcell.Screen, x, y, width int, text string, st tcell.Style) int 
 		if rw == 0 {
 			rw = 1
 		}
+		r, cst, id := gfxCell(r, st)
+		if id != 0 {
+			rw = 1
+		}
 		if col+rw > width {
 			break
 		}
-		s.SetContent(x+col, y, r, nil, st)
+		if id != 0 {
+			mathImages.at(id, x+col, y, cst)
+		}
+		s.SetContent(x+col, y, r, nil, cst)
 		col += rw
 	}
 	return col
