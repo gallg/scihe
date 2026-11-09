@@ -3,6 +3,19 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.4 — 2026-11-09
+
+### Changed
+- Typeset formulas: a blank row sets off two formula rows whose ink
+  would meet over the boundary between them (as TeX's `\lineskip`),
+  instead of every two rows showing a formula. A formula taller than a
+  line of text — a fraction, a root with an inner formula, a sum with
+  limits — fills the cells it takes and keeps its spacing; small
+  formulas, like a letter with a superscript or a subscript, leave as
+  much room around them as text does and are no longer set apart. The
+  bars of tables and quotes go on through the blank row as before
+  ([Formulas](formulas.md)).
+
 ## 0.2.3 — 2026-11-05
 
 ### Added

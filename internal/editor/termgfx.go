@@ -46,13 +46,14 @@ const (
 
 // gfxImage is a sent (or to be sent) image: one row of a formula.
 type gfxImage struct {
-	payload string // zlib-compressed RGBA, base64
-	w, h    int    // pixels
-	cols    int
-	row     int    // of its formula
-	above   int    // the image of the row above (row > 0)
-	alt     string // the formula on one line, on its baseline row (yanked)
-	sent    bool
+	payload  string // zlib-compressed RGBA, base64
+	w, h     int    // pixels
+	cols     int
+	row      int    // of its formula
+	above    int    // the image of the row above (row > 0)
+	top, bot int    // the ink's distance in pixels from the band's top and bottom
+	alt      string // the formula on one line, on its baseline row (yanked)
+	sent     bool
 }
 
 // gfxFormula is a formula's cells and its images, ok false when it is
@@ -329,21 +330,32 @@ func (g *mathGfx) draw(n *fnode, display bool) gfxFormula {
 		}
 		ids = append(ids, id)
 		pix := make([]byte, 0, cols*g.cellW*g.cellH*4)
+		first, last := -1, -1 // the band's first and last inked rows
 		for y := r * g.cellH; y < (r+1)*g.cellH; y++ {
 			for _, a := range mask.Pix[y*mask.Stride : y*mask.Stride+cols*g.cellW] {
 				pix = append(pix, g.color[0], g.color[1], g.color[2], a)
+				if a >= 32 { // the antialiasing haze is no ink
+					if first < 0 {
+						first = y
+					}
+					last = y
+				}
 			}
 		}
 		var zb bytes.Buffer
 		zw := zlib.NewWriter(&zb)
 		zw.Write(pix)
 		zw.Close()
-		g.imgs[id] = &gfxImage{payload: base64.StdEncoding.EncodeToString(zb.Bytes()), w: cols * g.cellW, h: g.cellH, cols: cols, row: r}
+		im := &gfxImage{payload: base64.StdEncoding.EncodeToString(zb.Bytes()), w: cols * g.cellW, h: g.cellH, cols: cols, row: r, top: g.cellH, bot: g.cellH}
+		if first >= 0 { // how far the ink stays off the band's edges
+			im.top, im.bot = first-r*g.cellH, (r+1)*g.cellH-1-last
+		}
+		g.imgs[id] = im
 		if r > 0 {
-			g.imgs[id].above = ids[r-1]
+			im.above = ids[r-1]
 		}
 		if r == out.base {
-			g.imgs[id].alt = n.linear()
+			im.alt = n.linear()
 		}
 		row := make([]mcell, cols)
 		for c := range row {
@@ -593,22 +605,44 @@ func gfxCellID(c mcell) int {
 	return 0
 }
 
-// spaceFormulas sets off rows showing different formulas, which would
-// touch: a blank row between them (as TeX's \lineskip), through which
-// the bars of tables and quotes go on. The rows of one formula stay
-// together.
+// spaceFormulas sets off rows showing formulas whose ink would meet
+// over the boundary between them: a formula taller than a line of text,
+// a fraction, a root with an inner formula, a sum with limits, fills
+// the cells it takes. A blank row between them (as TeX's \lineskip),
+// through which the bars of tables and quotes go on. Formulas that
+// leave as much room around them as text does — letters with a
+// superscript or a subscript — are not set apart. The rows of one
+// formula stay together.
 func (g *mathGfx) spaceFormulas(rows []mrow) []mrow {
 	out := make([]mrow, 0, len(rows))
 	var prev map[int]bool
 	for i, r := range rows {
 		ids := rowImages(r.cells)
-		if prev != nil && ids != nil && !g.continued(prev, ids) {
+		if prev != nil && ids != nil && !g.continued(prev, ids) && g.touching(prev, ids) {
 			out = append(out, spacerRow(rows[i-1], r))
 		}
 		out = append(out, r)
 		prev = ids
 	}
 	return out
+}
+
+// touching reports the ink of two rows meeting over their boundary:
+// that of the row above reaching within a pixel of its bottom edge and
+// that of the row below rising to its top edge.
+func (g *mathGfx) touching(above, below map[int]bool) bool {
+	bot, top := g.cellH, g.cellH
+	for id := range above {
+		if im := g.imgs[id]; im != nil && im.bot < bot {
+			bot = im.bot
+		}
+	}
+	for id := range below {
+		if im := g.imgs[id]; im != nil && im.top < top {
+			top = im.top
+		}
+	}
+	return bot+top <= 1
 }
 
 // continued reports a formula of the row above going on in this one.

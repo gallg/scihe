@@ -308,8 +308,10 @@ func TestMathImagesInlineRows(t *testing.T) {
 
 func TestMathImagesSpacing(t *testing.T) {
 	testGfx(t)
-	// lines of different formulas are set off by a blank row
-	rows := layoutMarkdown("- $a^2 + b^2$\n- $x_i$\n- plain", 80, true)
+	// formulas whose ink would meet over the boundary of their rows —
+	// a fraction filling its line, against script raised to the top of
+	// the next one — are set off by a blank row
+	rows := layoutMarkdown("- $\\frac{a}{b}$\n- $x^2$\n- plain", 80, true)
 	var got []string
 	for _, r := range rows {
 		got = append(got, strings.TrimRight(rowString(r.cells), " "))
@@ -320,6 +322,20 @@ func TestMathImagesSpacing(t *testing.T) {
 	if rows[1].src != 0 {
 		t.Fatalf("blank row shown for line %d, want the line above it", rows[1].src)
 	}
+	// small formulas leave as much room around them as text does: no
+	// blank row, between different formulas as between the same one
+	for _, src := range []string{
+		"- $x^2$ twice:\n- $x^2$ again",
+		"a $x^2$ line after\na $y_i$ line before",
+	} {
+		if rows := layoutMarkdown(src, 80, false); len(rows) != 2 {
+			var got []string
+			for _, r := range rows {
+				got = append(got, strings.TrimRight(rowString(r.cells), " "))
+			}
+			t.Fatalf("%q spaced: %q", src, got)
+		}
+	}
 	// the rows of one formula stay together
 	rows = layoutMarkdown("$$\\sum_{k=1}^{n} \\frac{1}{k^2}$$", 80, true)
 	for _, r := range rows {
@@ -328,7 +344,7 @@ func TestMathImagesSpacing(t *testing.T) {
 		}
 	}
 	// in a table the bars go on through the blank row
-	rows = layoutMarkdown("| a | b |\n|---|---|\n| $x^2$ | 1 |\n| $\\eta_0$ | 2 |", 80, true)
+	rows = layoutMarkdown("| a | b |\n|---|---|\n| $\\frac{a}{b}$ | 1 |\n| $x^2$ | 2 |", 80, true)
 	blank := -1
 	for i, r := range rows {
 		if s := rowString(r.cells); len(gfxIDs(s)) == 0 && strings.Trim(s, "│ ") == "" {
@@ -452,8 +468,17 @@ func TestMathImagesYank(t *testing.T) {
 
 func TestMathImagesQuoteSpacer(t *testing.T) {
 	testGfx(t)
-	rows := layoutMarkdown("> - $x^2$\n> - $y_i$", 80, true)
+	// a quote keeps its bar through the space formulas are set off by
+	rows := layoutMarkdown("> - $\\frac{a}{b}$\n> - $x^2$", 80, true)
 	if len(rows) != 3 || strings.TrimRight(rowString(rows[1].cells), " ") != "┃" {
+		var got []string
+		for _, r := range rows {
+			got = append(got, rowString(r.cells))
+		}
+		t.Fatalf("quote rows %q", got)
+	}
+	// small formulas in a quote are not set off
+	if rows = layoutMarkdown("> - $x^2$\n> - $y_i$", 80, true); len(rows) != 2 {
 		var got []string
 		for _, r := range rows {
 			got = append(got, rowString(r.cells))

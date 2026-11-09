@@ -73,9 +73,14 @@ again by themselves.
   taller. A display formula takes the rows it needs, at `math_scale`.
 - Unicode super- and subscripts (`H₂O`, `mc²`), `<sup>`, `<sub>` and
   footnote marks in the text are set the same way, on their line.
-- Rows of different formulas that would touch (consecutive lines, list
-  items) are set off by a blank row; the bars of tables and quotes go on
-  through it. In notebooks a blank row sets off consecutive formulas.
+- Rows of different formulas whose ink would meet over the boundary
+  between them (consecutive lines, list items) are set off by a blank
+  row, as TeX's `\lineskip`: a formula taller than a line of text, such
+  as a fraction, a root with an inner formula or a sum with limits,
+  fills the cells it takes. Formulas that leave as much room around
+  them as text does, like a letter with a superscript or a subscript,
+  are not set apart. The bars of tables and quotes go on through the
+  blank row. In notebooks a blank row sets off consecutive formulas.
 - The size of a cell in pixels is asked from the terminal; when it is
   smaller than 24 pixels high the images are drawn at twice the size, for
   Retina displays.

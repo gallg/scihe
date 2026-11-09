@@ -22,7 +22,7 @@ import (
 
 // version is the release; builds can override it with
 // -ldflags "-X main.version=…".
-var version = "0.2.3"
+var version = "0.2.4"
 
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
