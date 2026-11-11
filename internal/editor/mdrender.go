@@ -27,6 +27,7 @@ type mdRender struct {
 	text    []bool          // rows where a source line's text starts (not its raised scripts)
 	imgs    map[int][]mdImg // images per row, in runes
 	gen     int             // of the typeset formulas laid out (mathGen)
+	cache   mdCache         // the blocks of the last layout
 }
 
 func isMarkdown(b *buffer.Buffer) bool {
@@ -113,7 +114,7 @@ func (e *Editor) updateRenders() {
 			}
 		})
 		if width == 0 {
-			width = r.width // not shown: keep the layout
+			continue // not shown: laid out again when it is
 		}
 		if r.version != r.src.Version || width != r.width || e.options(r.src).Wrap != r.wrap || e.theme != r.theme || r.gen != mathGen() {
 			e.refreshRender(r, width)
@@ -160,12 +161,13 @@ func (e *Editor) refreshRender(r *mdRender, width int) {
 		})
 	}
 	r.width, r.wrap, r.theme, r.gen = width, e.options(r.src).Wrap, e.theme, mathGen()
-	rows := layoutMarkdown(r.src.Text(), width, r.wrap)
+	rows := layoutMarkdownCached(r.src.Text(), width, r.wrap, &r.cache)
 	lines := make([]string, len(rows))
 	spans := make([][]syntax.Span, len(rows))
 	r.lines = make([]int, len(rows))
 	r.text = make([]bool, len(rows))
 	r.imgs = map[int][]mdImg{}
+	termStyles := map[mdStyle]tcell.Style{} // a few styles over many cells
 	for i, row := range rows {
 		r.lines[i] = row.src
 		// the first row of a source line not above its baseline
@@ -187,7 +189,11 @@ func (e *Editor) refreshRender(r *mdRender, width int) {
 			}
 			sb.WriteString(c.s)
 			if c.st != 0 {
-				st := e.mdTermStyle(c.st)
+				st, ok := termStyles[c.st]
+				if !ok {
+					st = e.mdTermStyle(c.st)
+					termStyles[c.st] = st
+				}
 				if m := len(spans[i]); m > 0 && spans[i][m-1].End == n && spans[i][m-1].Style == st {
 					spans[i][m-1].End = n + 1
 				} else {

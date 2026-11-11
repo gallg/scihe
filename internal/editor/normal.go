@@ -800,9 +800,19 @@ func (e *Editor) openExternal(c *ctx) {
 	}
 	if target == "" {
 		target = wordAt(c.b.Line(c.w.cur.Line), c.w.cur.Col)
-		if _, err := os.Stat(target); err != nil {
+		st, err := os.Stat(target)
+		if err != nil {
 			e.errorf("no URL under cursor")
 			return
+		}
+		// the system opener runs programs it is given (a .command, a
+		// .desktop file, an executable): only documents are opened
+		if !st.Mode().IsRegular() || st.Mode()&0o111 != 0 || gxRunnable[strings.ToLower(filepath.Ext(target))] {
+			e.errorf("not opening %s: the system would run it", target)
+			return
+		}
+		if strings.HasPrefix(target, "-") {
+			target = "./" + target // not an option of the opener
 		}
 	}
 	if e.mappingDepth > 0 {
@@ -814,6 +824,15 @@ func (e *Editor) openExternal(c *ctx) {
 		return
 	}
 	e.infof("opened %s", target)
+}
+
+// gxRunnable are the files gx does not hand to the system opener, which
+// would run them rather than show them.
+var gxRunnable = map[string]bool{
+	".command": true, ".tool": true, ".terminal": true, ".desktop": true, ".scpt": true,
+	".applescript": true, ".jar": true, ".appimage": true, ".pkg": true, ".mpkg": true,
+	".exe": true, ".com": true, ".bat": true, ".cmd": true, ".ps1": true, ".vbs": true,
+	".msi": true, ".lnk": true, ".url": true, ".webloc": true, ".inetloc": true, ".fileloc": true,
 }
 
 func openWithSystem(target string) error {

@@ -59,19 +59,33 @@ func (b box) width() int {
 
 // cellsOf splits s into cells (control characters as blanks).
 func cellsOf(s string, st mdStyle) []mcell {
-	var out []mcell
+	out := make([]mcell, 0, len(s))
 	for _, r := range s {
-		if r < 32 || r == 0x7f || r >= 0x80 && r < 0xa0 {
-			r = ' ' // control characters (C1 too) never reach the terminal
-		}
-		w := runewidth.RuneWidth(r)
-		if w == 0 {
-			w = 1 // as the editor draws them (runeWidth)
-		}
-		out = append(out, mcell{string(r), st})
-		if w == 2 {
-			out = append(out, mcell{"", st})
-		}
+		out = appendCell(out, r, st)
+	}
+	return out
+}
+
+// asciiCells are the strings of the ASCII characters, made once: most
+// cells hold one.
+var asciiCells = func() (t [128]string) {
+	for i := range t {
+		t[i] = string(rune(i))
+	}
+	return
+}()
+
+// appendCell appends the cell of r (two for a wide character).
+func appendCell(out []mcell, r rune, st mdStyle) []mcell {
+	if r < 32 || r == 0x7f || r >= 0x80 && r < 0xa0 {
+		r = ' ' // control characters (C1 too) never reach the terminal
+	}
+	if r < 128 {
+		return append(out, mcell{asciiCells[r], st})
+	}
+	out = append(out, mcell{string(r), st})
+	if runewidth.RuneWidth(r) == 2 { // 0 counts as 1, as the editor draws them (runeWidth)
+		out = append(out, mcell{"", st})
 	}
 	return out
 }
@@ -131,16 +145,48 @@ func compose(items []placed) box {
 	return out
 }
 
-// hcat puts boxes side by side, aligned on their baselines.
+// hcat puts boxes side by side, aligned on their baselines: each row
+// is their rows one after the other (blank where a box has none).
 func hcat(bs ...box) box {
+	if len(bs) == 0 {
+		return box{rows: [][]mcell{{}}}
+	}
+	top, bottom, width := 0, 0, 0
+	for _, b := range bs {
+		for _, r := range b.rows {
+			if len(r) != b.width() {
+				return hcatRagged(bs) // rows of different widths: drawn over each other
+			}
+		}
+		if b.height() > 0 {
+			top, bottom = min(top, -b.base), max(bottom, b.height()-1-b.base)
+			width += b.width()
+		}
+	}
+	rows := make([][]mcell, bottom-top+1)
+	for y := range rows {
+		row := make([]mcell, 0, width)
+		for _, b := range bs {
+			if k := y + top + b.base; k >= 0 && k < b.height() {
+				row = append(row, b.rows[k]...)
+			} else {
+				for range b.width() {
+					row = append(row, blankCell)
+				}
+			}
+		}
+		rows[y] = row
+	}
+	return box{rows: rows, base: -top}
+}
+
+// hcatRagged is hcat for boxes whose rows differ in width.
+func hcatRagged(bs []box) box {
 	var items []placed
 	x := 0
 	for _, b := range bs {
 		items = append(items, placed{b, x, 0})
 		x += b.width()
-	}
-	if len(items) == 0 {
-		return box{rows: [][]mcell{{}}}
 	}
 	return compose(items)
 }

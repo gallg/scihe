@@ -3,6 +3,46 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.5 — 2026-11-11
+
+### Changed
+- Typing in large files no longer waits for syntax highlighting: once
+  highlighting a buffer takes more than 30 ms (markdown is the slowest
+  language), it is redone in the background after each edit, as it
+  already was for files over 400 KB. A file is still highlighted at
+  once when it is opened. In a 245 KB markdown file a keystroke took
+  about 0.9 s; it now takes about 3 ms.
+- The rendered markdown view lays out again only the paragraphs,
+  headings, tables and formulas an edit changed, and is not laid out at
+  all while no window shows it: editing a 245 KB source with the view
+  open in a split went from about 130 ms to about 30 ms per keystroke.
+  A first layout makes fewer allocations and is about 25% faster.
+- Jumping far in a file (`G`, a search, `:N`) is no longer slow in long
+  files: `G` in 5000 lines took 0.6 s, or 5 s with `wrap`; it now takes
+  a few milliseconds.
+- `colorbrackets` keeps the depths of the lines above an edit instead of
+  scanning the file from its first line after every keystroke.
+- Deleting characters and joining or splitting lines no longer copies
+  every line after the edit.
+- `gx` opens a file only when the system would show it: executable files
+  and files the system opener runs (`.command`, `.desktop`, `.jar`,
+  `.exe`, …) are refused; URLs open as before ([Keymap](keymap.md)).
+- A formula whose image would be very large (more than 1000 columns,
+  100 rows or 16384 cells) is shown as text instead of being drawn
+  ([Formulas](formulas.md)).
+
+### Fixed
+- A huge formula (a matrix of thousands of cells) could make the editor
+  run out of memory while drawing its image.
+- File names and grep results with control characters in the pickers
+  no longer reach the terminal as control sequences.
+- A malformed reply from an nREPL server (nested too deeply, or with an
+  endless number) is an error instead of a crash.
+- A formula drawn when the terminal's image ids had run out stayed text
+  until much later; it is typeset as soon as ids are free again.
+- `quantile` in data expressions gives the same result on every machine
+  (Apple Silicon differed in the last digit).
+
 ## 0.2.4 — 2026-11-09
 
 ### Changed

@@ -58,3 +58,38 @@ func TestRegions(t *testing.T) {
 		t.Fatal("shifted spans lost")
 	}
 }
+
+func TestShift(t *testing.T) {
+	a, b, c := []Span{{End: 1}}, []Span{{End: 2}}, []Span{{End: 3}}
+	h := &Highlighter{lines: [][]Span{a, b, c}}
+	h.Shift(1, 1, 1) // a line edited in place keeps its spans
+	if len(h.lines) != 3 || h.lines[1][0].End != 2 {
+		t.Fatalf("in place: %v", h.lines)
+	}
+	h.Shift(1, 1, 3) // two lines inserted after line 1
+	if len(h.lines) != 5 || h.lines[1][0].End != 2 || h.lines[2] != nil || h.lines[3] != nil || h.lines[4][0].End != 3 {
+		t.Fatalf("insert: %v", h.lines)
+	}
+	h.Shift(0, 3, 1) // lines 0-2 joined
+	if len(h.lines) != 3 || h.lines[0][0].End != 1 || h.lines[1] != nil || h.lines[2][0].End != 3 {
+		t.Fatalf("delete: %v", h.lines)
+	}
+}
+
+// a slow highlighting goes to the background: the next edit does not
+// wait for it, and its result comes with notify
+func TestSlowHighlightInBackground(t *testing.T) {
+	th := LoadTheme("monokai", false)
+	h := NewHighlighter("python", th, nil)
+	src := lines{"x = 'a'"}
+	if s := h.Spans(src, 1, 0, func() {}); len(s) == 0 {
+		t.Fatal("first highlighting not synchronous")
+	}
+	h.cost = 2 * syncCost
+	done := make(chan bool)
+	h.Spans(src, 2, 0, func() { done <- true })
+	<-done
+	if h.Version() != 2 {
+		t.Fatalf("background result for version %d", h.Version())
+	}
+}

@@ -91,7 +91,9 @@ Even in a terminal that shows images, a formula is shown as text when:
 
 - the font has no character for it (Chinese in `\text{…}`, for example);
 - it is wider than the window: it is laid out as text then, and with
-  `wrap` written on one line when that is still too wide.
+  `wrap` written on one line when that is still too wide;
+- its image would be very large (more than 1000 columns, 100 rows or
+  16384 cells): it is not drawn at all.
 
 ## Copying
 

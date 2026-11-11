@@ -503,3 +503,27 @@ func TestMathImagesPopup(t *testing.T) {
 		t.Fatalf("placed over a popup: %q", out.String())
 	}
 }
+
+// a formula whose image would be huge is shown as text, without drawing
+// it; one that ran out of ids is drawn when some are free again
+func TestMathImagesLimits(t *testing.T) {
+	testGfx(t)
+	g := mathImages
+	row := strings.TrimSuffix(strings.Repeat("a&", 300), "&")
+	huge := `\begin{matrix}` + strings.TrimSuffix(strings.Repeat(row+`\\`, 300), `\\`) + `\end{matrix}`
+	if _, ok := g.formula(huge, parseFormula(huge), true); ok {
+		t.Fatal("a 300×300 matrix typeset as an image")
+	}
+	if len(g.imgs) != 0 {
+		t.Fatalf("%d images drawn for it", len(g.imgs))
+	}
+	next := g.next
+	g.next = gfxMaxID // no id left
+	if _, ok := g.formula("x", parseFormula("x"), false); ok {
+		t.Fatal("typeset without an id")
+	}
+	g.next = next
+	if _, ok := g.formula("x", parseFormula("x"), false); !ok {
+		t.Fatal("not typeset once ids are free")
+	}
+}

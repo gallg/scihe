@@ -216,7 +216,12 @@ func (e *Editor) scrollToCursor(w *Window) {
 		if cl < w.top+so {
 			w.top = max(cl-so, 0)
 		}
-		// rows from top through the cursor row plus scrolloff lines after it
+		// rows from top through the cursor row plus scrolloff lines after it;
+		// each line takes a row at least, so a top more than h lines above
+		// the cursor never fits (a far jump does not count every line)
+		if w.top < cl-h {
+			w.top = cl - h
+		}
 		for w.top < cl {
 			rows := 0
 			last := min(cl+so, b.LineCount()-1)
@@ -326,6 +331,10 @@ func (e *Editor) drawWindow(w *Window) {
 	ann := e.annots[b.ID]
 	tv := e.tables[b.ID]
 	rd := e.renders[b.ID]
+	var headers map[int]bool // notebook cell headers, for colorbrackets
+	if static == nil && o.ColorBrackets {
+		headers = e.cellHeaders(b)
+	}
 	row := 0
 	for l := w.top; l < b.LineCount() && row < h; l++ {
 		y := w.y + row
@@ -406,9 +415,9 @@ func (e *Editor) drawWindow(w *Window) {
 			}
 		}
 		if static == nil && e.options(b).ColorBrackets {
-			e.colorBrackets(b, hl, l, spans, styles, notify)
+			e.colorBrackets(b, hl, l, spans, styles, headers, notify)
 		}
-		for _, m := range e.matchesInLine(string(line)) {
+		for _, m := range e.matchesInLine(line) {
 			for i := m[0]; i < m[1] && i < len(line); i++ {
 				styles[i] = withBg(styles[i], th.Search)
 			}
@@ -932,6 +941,8 @@ func (e *Editor) drawPicker(sw, sh int) {
 			}
 			if r < 32 {
 				r = ' '
+			} else if r == 0x7f || r >= 0x80 && r < 0xa0 {
+				r = '?' // control characters never reach the terminal (file text in grep results)
 			}
 			s.SetContent(x0+2+col, y, r, nil, cs)
 			col += rw

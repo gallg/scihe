@@ -65,19 +65,48 @@ func encode(b *bytes.Buffer, v any) error {
 	return nil
 }
 
+// bencodeMaxDepth bounds the nesting of lists and dictionaries (nREPL
+// messages nest a few levels): a deeper one is an error, not a stack
+// exhausted by a hostile server.
+const bencodeMaxDepth = 100
+
 // Decode reads one bencoded value.
-func Decode(r *bufio.Reader) (any, error) {
+func Decode(r *bufio.Reader) (any, error) { return decode(r, 0) }
+
+// readNumber reads the digits of a number up to its delimiter, which it
+// consumes; at most 20 bytes (an int64 and its sign).
+func readNumber(r *bufio.Reader, delim byte) (string, error) {
+	var b []byte
+	for {
+		c, err := r.ReadByte()
+		if err != nil {
+			return "", err
+		}
+		if c == delim {
+			return string(b), nil
+		}
+		if len(b) == 20 {
+			return "", errors.New("bencode: number too long")
+		}
+		b = append(b, c)
+	}
+}
+
+func decode(r *bufio.Reader, depth int) (any, error) {
+	if depth > bencodeMaxDepth {
+		return nil, errors.New("bencode: nested too deeply")
+	}
 	c, err := r.ReadByte()
 	if err != nil {
 		return nil, err
 	}
 	switch {
 	case c == 'i':
-		s, err := r.ReadString('e')
+		s, err := readNumber(r, 'e')
 		if err != nil {
 			return nil, err
 		}
-		return strconv.ParseInt(s[:len(s)-1], 10, 64)
+		return strconv.ParseInt(s, 10, 64)
 	case c == 'l':
 		var out []any
 		for {
@@ -89,7 +118,7 @@ func Decode(r *bufio.Reader) (any, error) {
 				r.ReadByte()
 				return out, nil
 			}
-			v, err := Decode(r)
+			v, err := decode(r, depth+1)
 			if err != nil {
 				return nil, err
 			}
@@ -106,7 +135,7 @@ func Decode(r *bufio.Reader) (any, error) {
 				r.ReadByte()
 				return out, nil
 			}
-			k, err := Decode(r)
+			k, err := decode(r, depth+1)
 			if err != nil {
 				return nil, err
 			}
@@ -114,18 +143,18 @@ func Decode(r *bufio.Reader) (any, error) {
 			if !ok {
 				return nil, errors.New("bencode: non-string dict key")
 			}
-			v, err := Decode(r)
+			v, err := decode(r, depth+1)
 			if err != nil {
 				return nil, err
 			}
 			out[ks] = v
 		}
 	case c >= '0' && c <= '9':
-		s, err := r.ReadString(':')
+		s, err := readNumber(r, ':')
 		if err != nil {
 			return nil, err
 		}
-		n, err := strconv.Atoi(string(c) + s[:len(s)-1])
+		n, err := strconv.Atoi(string(c) + s)
 		if err != nil || n < 0 || n > 64<<20 {
 			return nil, fmt.Errorf("bencode: bad string length")
 		}

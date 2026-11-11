@@ -139,13 +139,15 @@ func Quantile(sorted []float64, q float64) float64 {
 	if len(sorted) == 0 {
 		return math.NaN()
 	}
-	pos := q * float64(len(sorted)-1)
+	// the conversions round the products: no fused multiply-add (arm64),
+	// the same result as numpy on every machine
+	pos := float64(q * float64(len(sorted)-1))
 	lo := int(math.Floor(pos))
 	hi := int(math.Ceil(pos))
 	if lo == hi {
 		return sorted[lo]
 	}
-	return sorted[lo] + (sorted[hi]-sorted[lo])*(pos-float64(lo))
+	return sorted[lo] + float64((sorted[hi]-sorted[lo])*(pos-float64(lo)))
 }
 
 // Funcs are the aggregate functions available as commands.

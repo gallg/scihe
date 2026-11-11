@@ -439,7 +439,11 @@ func (e *Editor) onChange(b *buffer.Buffer, line, removed, added int) {
 		h.Shift(line, removed, added)
 	}
 	e.invalidateBrackets(b, line)
-	if an := e.annots[b.ID]; len(an) > 0 {
+	if an := e.annots[b.ID]; len(an) > 0 && removed == added {
+		for l := line; l < line+removed; l++ {
+			delete(an, l) // the edited lines lose theirs
+		}
+	} else if len(an) > 0 {
 		delta := added - removed
 		moved := map[int]annotation{}
 		for l, a := range an {

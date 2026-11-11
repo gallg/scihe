@@ -205,7 +205,7 @@ func mStar(forward, whole bool) MotionFunc {
 }
 
 // matchesInLine returns rune ranges of search matches on a line for hlsearch.
-func (e *Editor) matchesInLine(line string) [][2]int {
+func (e *Editor) matchesInLine(rs []rune) [][2]int {
 	if !e.cfg.Options.HLSearch || e.search.noHL {
 		return nil
 	}
@@ -213,6 +213,7 @@ func (e *Editor) matchesInLine(line string) [][2]int {
 	if re == nil {
 		return nil
 	}
+	line := string(rs)
 	var out [][2]int
 	for _, loc := range re.FindAllStringIndex(line, 50) {
 		if loc[0] == loc[1] {

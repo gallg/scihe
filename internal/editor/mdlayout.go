@@ -37,6 +37,64 @@ type mdLayout struct {
 	wrap    bool
 	list    int                // depth of the list being laid out (its bullet)
 	noClose map[mdCloseKey]int // display formulas found unclosed (see displayMath)
+	cache   *mdCache
+}
+
+// mdCache keeps the rows of the paragraphs and tables of a view from one
+// layout to the next, so an edit lays out again only what it changed.
+// The rows of the last layout are kept, the others dropped; all of them
+// when the typeset formulas are drawn anew.
+type mdCache struct {
+	gen       int  // mathGen of the rows
+	gfx       bool // typeset formulas in them
+	cur, prev map[string][]mrow
+}
+
+// begin starts a layout.
+func (c *mdCache) begin() {
+	if c.gen != mathGen() || c.gfx != (mathImages != nil) {
+		c.gen, c.gfx, c.prev = mathGen(), mathImages != nil, nil
+	}
+	c.cur = map[string][]mrow{}
+}
+
+// end drops the rows the layout did not use.
+func (c *mdCache) end() {
+	c.prev, c.cur = c.cur, nil
+}
+
+// cached returns the rows of lines (shown for srcs) made by f, kept
+// under key. The rows are kept with their source lines counted from the
+// first, so a block moved by an edit above it is found again; lines not
+// consecutive in the source are laid out every time.
+func (L *mdLayout) cached(key string, lines []string, srcs []int, f func() []mrow) []mrow {
+	c := L.cache
+	if c == nil || len(srcs) == 0 || srcs[len(srcs)-1]-srcs[0] != len(srcs)-1 {
+		return f()
+	}
+	var sb strings.Builder
+	sb.WriteString(key)
+	for _, l := range lines {
+		sb.WriteByte('\n')
+		sb.WriteString(l)
+	}
+	k := sb.String()
+	rows, ok := c.cur[k]
+	if !ok {
+		if rows, ok = c.prev[k]; !ok {
+			rows = f()
+			for i := range rows {
+				rows[i].src -= srcs[0]
+			}
+		}
+		c.cur[k] = rows
+	}
+	out := make([]mrow, len(rows))
+	for i, r := range rows {
+		r.src += srcs[0]
+		out[i] = r
+	}
+	return out
 }
 
 // mdNoWrap is the width given to text when lines are not wrapped.
@@ -45,12 +103,22 @@ const mdNoWrap = 1 << 30
 // layoutMarkdown lays out a markdown text for a window width columns
 // wide.
 func layoutMarkdown(src string, width int, wrap bool) []mrow {
+	return layoutMarkdownCached(src, width, wrap, nil)
+}
+
+// layoutMarkdownCached lays out a markdown text with the blocks kept in
+// c from the last layout (nil: none).
+func layoutMarkdownCached(src string, width int, wrap bool, c *mdCache) []mrow {
 	lines := strings.Split(src, "\n")
 	srcs := make([]int, len(lines))
 	for i := range srcs {
 		srcs[i] = i
 	}
-	L := &mdLayout{wrap: wrap}
+	L := &mdLayout{wrap: wrap, cache: c}
+	if c != nil {
+		c.begin()
+		defer c.end()
+	}
 	var rows []mrow
 	start := frontMatterEnd(lines)
 	for i := 0; i < start; i++ {
@@ -80,6 +148,18 @@ var (
 	mdTaskBoxRe = regexp.MustCompile(`^\[([ xX])\](?: +|$)`)
 )
 
+// isATX and isItem report a heading or a list item line: their regexp,
+// after a test of the first character that turns most lines down
+// cheaply (they are asked of every line of a page).
+func isATX(l string) bool {
+	return strings.HasPrefix(strings.TrimLeft(l, " "), "#") && mdATXRe.MatchString(l)
+}
+
+func isItem(l string) bool {
+	t := strings.TrimLeft(l, " \t")
+	return t != "" && strings.IndexByte("-*+0123456789", t[0]) >= 0 && mdItemRe.MatchString(expandTabs(l))
+}
+
 // mdEnvRe matches a LaTeX environment opening a display formula
 // without dollars (\begin{equation}, \begin{align*}…), as Jupyter reads it.
 var mdEnvRe = regexp.MustCompile(`^\\begin\{([A-Za-z]+\*?)\}`)
@@ -87,15 +167,15 @@ var mdEnvRe = regexp.MustCompile(`^\\begin\{([A-Za-z]+\*?)\}`)
 // displayMathAt reports a line opening a display formula.
 func displayMathAt(l string) bool {
 	t := strings.TrimLeft(l, " ")
-	return strings.HasPrefix(t, "$$") || mdEnvRe.MatchString(t)
+	return strings.HasPrefix(t, "$$") || strings.HasPrefix(t, `\begin{`) && mdEnvRe.MatchString(t)
 }
 
 // blockStart reports a line that ends a paragraph.
 func (L *mdLayout) blockStart(lines []string, i int) bool {
 	l := lines[i]
 	t := strings.TrimSpace(l)
-	return t == "" || mdATXRe.MatchString(l) || strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") ||
-		indent(l) <= 3 && strings.HasPrefix(t, ">") || isRule(l) || mdItemRe.MatchString(expandTabs(l)) ||
+	return t == "" || isATX(l) || strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") ||
+		indent(l) <= 3 && strings.HasPrefix(t, ">") || isRule(l) || isItem(l) ||
 		tableLen(lines, i) > 0 || displayMathAt(l) || strings.HasPrefix(t, "<!--")
 }
 
@@ -149,7 +229,7 @@ func (L *mdLayout) blocks(lines []string, srcs []int, width int) []mrow {
 			}
 			out = append(out, rows...)
 			i = next
-		case mdATXRe.MatchString(l):
+		case isATX(l):
 			m := mdATXRe.FindStringSubmatch(l)
 			out = append(out, L.heading(m[2], len(m[1]), srcs[i], width)...)
 			i++
@@ -160,13 +240,16 @@ func (L *mdLayout) blocks(lines []string, srcs []int, width int) []mrow {
 			rows, next := L.quote(lines, srcs, i, width)
 			out = append(out, rows...)
 			i = next
-		case mdItemRe.MatchString(expandTabs(l)):
+		case isItem(l):
 			rows, next := L.listItem(lines, srcs, i, width)
 			out = append(out, rows...)
 			i = next
 		case tableLen(lines, i) > 0:
 			n := tableLen(lines, i)
-			out = append(out, L.table(lines[i:i+n], srcs[i:i+n], width)...)
+			key := "t" + strconv.Itoa(width) + "," + strconv.FormatBool(L.wrap)
+			out = append(out, L.cached(key, lines[i:i+n], srcs[i:i+n], func() []mrow {
+				return L.table(lines[i:i+n], srcs[i:i+n], width)
+			})...)
 			i += n
 		default:
 			rows, next := L.paragraph(lines, srcs, i, width)
@@ -197,8 +280,13 @@ func (L *mdLayout) paragraph(lines []string, srcs []int, i, width int) ([]mrow, 
 			return L.headingLines(lines[i:j], srcs[i:j], 2, width, srcs[j]), j + 1
 		}
 	}
-	atoms := L.inline(lines[i:j], srcs[i:j], 0)
-	return L.flow(atoms, width), j
+	return L.textRows(lines[i:j], srcs[i:j], 0, width), j
+}
+
+// textRows lays out the inline text of lines with the base style st.
+func (L *mdLayout) textRows(lines []string, srcs []int, st mdStyle, width int) []mrow {
+	key := "p" + strconv.Itoa(int(st)) + "," + strconv.Itoa(width) + "," + strconv.FormatBool(L.wrap)
+	return L.cached(key, lines, srcs, func() []mrow { return L.flow(L.inline(lines, srcs, st), width) })
 }
 
 func (L *mdLayout) heading(text string, level, src, width int) []mrow {
@@ -208,7 +296,7 @@ func (L *mdLayout) heading(text string, level, src, width int) []mrow {
 // headingLines lays out a heading; the first two levels are underlined
 // on the row under (mapped to under, the setext underline).
 func (L *mdLayout) headingLines(lines []string, srcs []int, level, width, under int) []mrow {
-	rows := L.flow(L.inline(lines, srcs, msHeading|msBold), width)
+	rows := L.textRows(lines, srcs, msHeading|msBold, width)
 	if level > 2 {
 		return rows
 	}
@@ -275,6 +363,11 @@ type mdCloseKey struct {
 // formulaRows lays out a display formula centred, or on one line when
 // it is wider than the window.
 func (L *mdLayout) formulaRows(content string, src, width int) []mrow {
+	key := "f" + strconv.Itoa(width) + "," + strconv.FormatBool(L.wrap)
+	return L.cached(key, []string{content}, []int{src}, func() []mrow { return L.formulaRowsOf(content, src, width) })
+}
+
+func (L *mdLayout) formulaRowsOf(content string, src, width int) []mrow {
 	n := parseFormula(content)
 	b := mathFormulaBox(content, n, true)
 	if b.width() > width && isTypeset(b) {
@@ -372,7 +465,7 @@ func (L *mdLayout) listItem(lines []string, srcs []int, i, width int) ([]mrow, i
 			continue
 		}
 		in := indent(l)
-		nested := in > ind && mdItemRe.MatchString(l)
+		nested := in > ind && isItem(l)
 		lazy := strings.TrimSpace(body[len(body)-1]) != "" && !L.blockStart(lines, j)
 		if in < content && !nested && !lazy {
 			break
@@ -945,7 +1038,7 @@ func (p *inlParser) char(i int, r rune, st mdStyle) {
 	if len(p.word) == 0 {
 		p.at = i
 	}
-	p.word = append(p.word, cellsOf(string(r), st)...)
+	p.word = appendCell(p.word, r, st)
 }
 
 // add puts a box after the text read so far (no blank between them

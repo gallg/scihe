@@ -1,6 +1,8 @@
 package editor
 
 import (
+	"math"
+
 	"github.com/gdamore/tcell/v2"
 
 	"scihe/internal/buffer"
@@ -38,12 +40,14 @@ func (e *Editor) cursorBracket(b *buffer.Buffer, cur Pos) (Pos, bool) {
 // line needs, and an edit invalidates it from the edited line on (see
 // onChange), so typing in a big file does not rescan the whole file.
 // New syntax highlighting (it decides what is a string or a comment)
-// invalidates all of it.
+// invalidates it from the first line edited since the highlighting was
+// last up to date: the lines above kept their text and their spans.
 type bracketDepths struct {
 	hl        *syntax.Highlighter // the highlighter the depths came from
 	hlVersion int
 	depth     []int // depth at the start of line i, for i < valid
 	valid     int
+	dirty     int // the first line edited since the highlighting was up to date
 }
 
 // invalidateBrackets drops the cached depths after line (an edit there
@@ -51,6 +55,7 @@ type bracketDepths struct {
 func (e *Editor) invalidateBrackets(b *buffer.Buffer, line int) {
 	if bd := e.brackets[b.ID]; bd != nil {
 		bd.valid = max(min(bd.valid, line+1), 0)
+		bd.dirty = min(bd.dirty, max(line, 0))
 	}
 }
 
@@ -97,9 +102,19 @@ func (e *Editor) depthAt(b *buffer.Buffer, hl *syntax.Highlighter, l int, header
 	hl.Spans(b, b.Version, 0, notify) // bring the highlighting up to date first
 	v := hl.Version()
 	bd := e.brackets[b.ID]
-	if bd == nil || bd.hl != hl || bd.hlVersion != v {
-		bd = &bracketDepths{hl: hl, hlVersion: v}
+	if bd == nil || bd.hl != hl {
+		bd = &bracketDepths{hl: hl, hlVersion: v, dirty: math.MaxInt}
+		if v != b.Version {
+			bd.dirty = 0 // spans still being made: none to trust
+		}
 		e.brackets[b.ID] = bd
+	}
+	if bd.hlVersion != v { // new spans from the first line edited on
+		bd.valid = min(bd.valid, bd.dirty+1)
+		bd.hlVersion = v
+		if v == b.Version { // a result from before the last edits keeps them dirty
+			bd.dirty = math.MaxInt
+		}
 	}
 	if len(bd.depth) != n {
 		d := make([]int, n)
@@ -127,12 +142,12 @@ func (e *Editor) depthAt(b *buffer.Buffer, hl *syntax.Highlighter, l int, header
 
 // colorBrackets colours the brackets of line l by nesting depth; a
 // closing bracket without an opening one gets the error colour.
-func (e *Editor) colorBrackets(b *buffer.Buffer, hl *syntax.Highlighter, l int, spans []syntax.Span, styles []tcell.Style, notify func()) {
+// headers are those of cellHeaders.
+func (e *Editor) colorBrackets(b *buffer.Buffer, hl *syntax.Highlighter, l int, spans []syntax.Span, styles []tcell.Style, headers map[int]bool, notify func()) {
 	th := e.theme
 	if len(th.Brackets) == 0 {
 		return
 	}
-	headers := e.cellHeaders(b)
 	if headers[l] {
 		return
 	}

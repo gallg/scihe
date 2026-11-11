@@ -2,8 +2,10 @@ package syntax
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/alecthomas/chroma/v2"
@@ -137,7 +139,8 @@ type Highlighter struct {
 	pending  bool
 	theme    *Theme
 	regions  func() []Region
-	gen      int // bumped by SetTheme/SetFiletype; stale background results are dropped
+	gen      int           // bumped by SetTheme; stale background results are dropped
+	cost     time.Duration // how long the last highlighting took
 }
 
 // Version is the buffer version the current spans were computed for
@@ -163,15 +166,6 @@ func (h *Highlighter) SetTheme(t *Theme) {
 	h.mu.Unlock()
 }
 
-// SetFiletype changes the language.
-func (h *Highlighter) SetFiletype(ft string) {
-	h.mu.Lock()
-	h.Filetype = ft
-	h.version = -1
-	h.gen++
-	h.mu.Unlock()
-}
-
 // Shift keeps cached spans aligned with an edit until re-highlighting.
 func (h *Highlighter) Shift(line, removed, added int) {
 	h.mu.Lock()
@@ -183,16 +177,21 @@ func (h *Highlighter) Shift(line, removed, added int) {
 	if end > len(h.lines) {
 		end = len(h.lines)
 	}
-	repl := make([][]Span, added)
-	for i := 0; i < added && line+i < end; i++ {
-		repl[i] = h.lines[line+i]
+	if end-line == added {
+		return // the lines kept their place (and their old spans)
 	}
-	rest := append([][]Span(nil), h.lines[end:]...)
-	h.lines = append(append(h.lines[:line], repl...), rest...)
+	repl := make([][]Span, added)
+	copy(repl, h.lines[line:end])
+	h.lines = slices.Replace(h.lines, line, end, repl...)
 }
 
-// syncLimit is the size up to which highlighting runs synchronously.
-const syncLimit = 400_000
+// syncLimit is the size up to which highlighting runs synchronously,
+// and syncCost the time it may take: a slower lexer (markdown's) runs in
+// the background after its first result, so typing never waits for it.
+const (
+	syncLimit = 400_000
+	syncCost  = 30 * time.Millisecond
+)
 
 // Spans returns cached spans for line i, refreshing the cache if the
 // buffer version changed. Large buffers are refreshed in the background;
@@ -212,8 +211,10 @@ func (h *Highlighter) Spans(src Source, version, i int, notify func()) []Span {
 			regions = h.regions()
 		}
 		ft, theme := h.Filetype, h.theme
-		if size <= syncLimit || notify == nil {
+		if size <= syncLimit && h.cost <= syncCost || notify == nil {
+			t0 := time.Now()
 			h.lines = compute(ft, theme, texts, regions)
+			h.cost = time.Since(t0)
 			h.version = version
 		} else {
 			h.pending = true
@@ -226,8 +227,10 @@ func (h *Highlighter) Spans(src Source, version, i int, notify func()) []Span {
 						h.mu.Unlock()
 					}
 				}()
+				t0 := time.Now()
 				res := compute(ft, theme, texts, regions)
 				h.mu.Lock()
+				h.cost = time.Since(t0)
 				if gen == h.gen {
 					h.lines = res
 					h.version = version

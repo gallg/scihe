@@ -13,6 +13,7 @@ The leader key is `Space`. Press it and wait to see the keys below.
 | `Space :` | Command history |
 | `Space ?` | All key bindings |
 | `Ctrl-l` | Redraw the screen; typeset formulas are sent to the terminal again |
+| `gx` | Open the URL or file under the cursor with the system app; executable files and those the system would run (`.command`, `.desktop`, `.jar`, `.exe`, …) are refused |
 
 ## Clipboard
 

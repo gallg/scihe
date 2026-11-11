@@ -237,8 +237,3 @@ func (t *Theme) TokenStyle(tt chroma.TokenType) tcell.Style {
 	t.cache[tt] = s
 	return s
 }
-
-// Accent returns an accent foreground style derived from a token type.
-func (t *Theme) Accent(tt chroma.TokenType) tcell.Style {
-	return t.Default.Foreground(t.colorOf(tt, t.fg))
-}

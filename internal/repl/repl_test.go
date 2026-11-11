@@ -260,3 +260,20 @@ func TestChezConsoleOutputWithoutNewline(t *testing.T) {
 		t.Fatalf("%+v", r)
 	}
 }
+
+// hostile input is an error, not a crash
+func TestBencodeLimits(t *testing.T) {
+	for _, in := range []string{
+		strings.Repeat("l", 1<<20),
+		"i" + strings.Repeat("1", 1<<20) + "e",
+		strings.Repeat("1", 1<<20) + ":",
+	} {
+		if _, err := Decode(bufio.NewReader(strings.NewReader(in))); err == nil {
+			t.Errorf("%.10q…: no error", in)
+		}
+	}
+	nested := strings.Repeat("l", 50) + strings.Repeat("e", 50)
+	if _, err := Decode(bufio.NewReader(strings.NewReader(nested))); err != nil {
+		t.Errorf("nesting of 50: %v", err)
+	}
+}

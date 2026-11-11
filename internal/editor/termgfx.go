@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -42,6 +43,9 @@ const (
 	gfxPlaceholder = 0x10EEEE
 	gfxChunk       = 4096 // base64 bytes per escape sequence
 	gfxMaxCache    = 2000 // formulas kept at least (see rotate)
+	// a formula larger than this is shown as text: its image would take
+	// gigabytes (wider than any window, which shows it as text anyway)
+	gfxMaxCols, gfxMaxRows, gfxMaxCells = 1000, 100, 16384
 )
 
 // gfxImage is a sent (or to be sent) image: one row of a formula.
@@ -59,9 +63,10 @@ type gfxImage struct {
 // gfxFormula is a formula's cells and its images, ok false when it is
 // shown as text.
 type gfxFormula struct {
-	b   box
-	ids []int
-	ok  bool
+	b     box
+	ids   []int
+	ok    bool
+	retry bool // out of image ids: drawn again once some are free
 }
 
 type mathGfx struct {
@@ -263,7 +268,10 @@ func (e *Editor) syncMathImages(resized bool) {
 // formula returns the cells showing a typeset formula, false when it
 // can't be typeset (a character the font lacks).
 func (g *mathGfx) formula(content string, n *fnode, display bool) (box, bool) {
-	key := content + "\x00" + map[bool]string{true: "d", false: "t"}[display]
+	key := content + "\x00t"
+	if display {
+		key = content + "\x00d"
+	}
 	f, ok := g.cache[key]
 	if !ok {
 		if f, ok = g.old[key]; ok {
@@ -271,7 +279,9 @@ func (g *mathGfx) formula(content string, n *fnode, display bool) (box, bool) {
 		} else {
 			f = g.draw(n, display)
 		}
-		g.cache[key] = f
+		if !f.retry {
+			g.cache[key] = f
+		}
 	}
 	return f.b, f.ok
 }
@@ -314,12 +324,17 @@ func (g *mathGfx) draw(n *fnode, display bool) gfxFormula {
 	}
 	wpx := mb.w * px
 	cols := max(int(math.Ceil((wpx+2)/W)), 1)
+	if cols > gfxMaxCols || rows > gfxMaxRows || cols*rows > gfxMaxCells {
+		return gfxFormula{} // too large: text
+	}
 	if rows > len(g.free)+gfxMaxID-g.next {
-		return gfxFormula{} // out of ids: text
+		return gfxFormula{retry: true} // out of ids: text
 	}
 	mask := raster(mb, px, cols*g.cellW, rows*g.cellH, (float64(cols)*W-wpx)/2, base)
 	out := box{base: min(int(base/H), rows-1)}
 	var ids []int
+	var zb bytes.Buffer
+	zw := zlib.NewWriter(&zb)
 	for r := 0; r < rows; r++ {
 		var id int
 		if k := len(g.free); k > 0 {
@@ -342,8 +357,8 @@ func (g *mathGfx) draw(n *fnode, display bool) gfxFormula {
 				}
 			}
 		}
-		var zb bytes.Buffer
-		zw := zlib.NewWriter(&zb)
+		zb.Reset()
+		zw.Reset(&zb)
 		zw.Write(pix)
 		zw.Close()
 		im := &gfxImage{payload: base64.StdEncoding.EncodeToString(zb.Bytes()), w: cols * g.cellW, h: g.cellH, cols: cols, row: r, top: g.cellH, bot: g.cellH}
@@ -363,7 +378,7 @@ func (g *mathGfx) draw(n *fnode, display bool) gfxFormula {
 		}
 		out.rows = append(out.rows, row)
 	}
-	return gfxFormula{out, ids, true}
+	return gfxFormula{b: out, ids: ids, ok: true}
 }
 
 // inlineRows returns the rows a formula takes on the baseline of the
@@ -598,9 +613,12 @@ func rowImages(row []mcell) map[int]bool {
 }
 
 func gfxCellID(c mcell) int {
-	r := []rune(c.s)
-	if len(r) == 1 && r[0] > gfxBase && r[0] <= gfxBase+gfxMaxID {
-		return int(r[0] - gfxBase)
+	if len(c.s) != 4 { // the runes of image cells take four bytes
+		return 0
+	}
+	r, n := utf8.DecodeRuneInString(c.s)
+	if n == 4 && r > gfxBase && r <= gfxBase+gfxMaxID {
+		return int(r - gfxBase)
 	}
 	return 0
 }

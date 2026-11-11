@@ -58,7 +58,8 @@ func tableLen(lines []string, i int) int {
 func startsBlock(l string) bool {
 	t := strings.TrimSpace(l)
 	return strings.HasPrefix(t, ">") || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "```") ||
-		strings.HasPrefix(t, "~~~") || isRule(l) || mdBulletRe.MatchString(l) || mdNumberRe.MatchString(l)
+		strings.HasPrefix(t, "~~~") || isRule(l) ||
+		t != "" && strings.IndexByte("-*+0123456789", t[0]) >= 0 && (mdBulletRe.MatchString(l) || mdNumberRe.MatchString(l))
 }
 
 // indent returns the width of the leading blanks, a tab counting to the

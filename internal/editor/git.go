@@ -112,14 +112,15 @@ func (e *Editor) gitBranch(dir string) string {
 	}
 	cur := h.m[dir]
 	if !cur.pending && time.Since(cur.at) > gitHeadTTL {
-		if _, err := exec.LookPath("git"); err != nil {
-			cur.at = time.Now().Add(time.Hour)
-			h.m[dir] = cur
-			return ""
-		}
 		cur.pending = true
 		h.m[dir] = cur
-		e.safeGo(func() {
+		e.safeGo(func() { // off the draw: the PATH lookup and the commands
+			if _, err := exec.LookPath("git"); err != nil {
+				h.mu.Lock()
+				h.m[dir] = gitHead{at: time.Now().Add(time.Hour)}
+				h.mu.Unlock()
+				return
+			}
 			name := ""
 			if out, err := git(dir, "symbolic-ref", "--short", "-q", "HEAD"); err == nil {
 				name = strings.TrimSpace(out)

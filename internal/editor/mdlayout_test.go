@@ -513,3 +513,53 @@ func TestNotebookFormulaOutputKernel(t *testing.T) {
 		t.Fatalf("output box: %q", got)
 	}
 }
+
+// the blocks kept from the last layout give the rows a layout anew
+// gives, through edits that add, remove and change lines anywhere
+func TestLayoutCache(t *testing.T) {
+	src, err := os.ReadFile("../../examples/formulas.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readme, _ := os.ReadFile("../../README.md")
+	for _, gfx := range []bool{false, true} {
+		if gfx {
+			testGfx(t)
+		}
+		lines := strings.Split(string(src)+"\n"+string(readme), "\n")
+		var c mdCache
+		seed := uint32(7)
+		rnd := func(n int) int { seed = seed*1664525 + 1013904223; return int(seed>>8) % n }
+		for step := 0; step < 60; step++ {
+			l := rnd(len(lines))
+			switch rnd(4) {
+			case 0:
+				lines = append(lines[:l], append([]string{"new $x^2$ line"}, lines[l:]...)...)
+			case 1:
+				lines = append(lines[:l], lines[l+1:]...)
+			case 2:
+				lines[l] += " more"
+			default:
+				lines = append(lines[:l], append([]string{""}, lines[l:]...)...)
+			}
+			text := strings.Join(lines, "\n")
+			width, wrap := 60+rnd(3)*20, rnd(4) > 0
+			got := layoutMarkdownCached(text, width, wrap, &c)
+			want := layoutMarkdown(text, width, wrap)
+			if len(got) != len(want) {
+				t.Fatalf("gfx %v step %d: %d rows, want %d", gfx, step, len(got), len(want))
+			}
+			for i := range want {
+				g, w := got[i], want[i]
+				if rowString(g.cells) != rowString(w.cells) || g.src != w.src || g.above != w.above || len(g.imgs) != len(w.imgs) {
+					t.Fatalf("gfx %v step %d row %d: %q src %d, want %q src %d", gfx, step, i, rowString(g.cells), g.src, rowString(w.cells), w.src)
+				}
+				for k := range w.cells {
+					if g.cells[k] != w.cells[k] {
+						t.Fatalf("gfx %v step %d row %d cell %d: %v, want %v", gfx, step, i, k, g.cells[k], w.cells[k])
+					}
+				}
+			}
+		}
+	}
+}

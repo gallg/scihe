@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"unicode/utf8"
@@ -662,8 +663,7 @@ func (b *Buffer) rawInsert(p Pos, text string) Pos {
 	}
 	lastR := []rune(parts[len(parts)-1])
 	newLines[len(parts)-1] = append(append([]rune(nil), lastR...), tail...)
-	rest := append([][]rune(nil), b.lines[p.Line+1:]...)
-	b.lines = append(append(b.lines[:p.Line], newLines...), rest...)
+	b.lines = slices.Replace(b.lines, p.Line, p.Line+1, newLines...)
 	b.marksInserted(p, len(parts)-1, 0, len(lastR))
 	b.changed(p.Line, 1, len(parts))
 	return Pos{p.Line + len(parts) - 1, len(lastR)}
@@ -677,8 +677,8 @@ func (b *Buffer) rawDelete(start, end Pos) string {
 	merged = append(merged, first...)
 	merged = append(merged, last...)
 	removed := end.Line - start.Line + 1
-	rest := append([][]rune(nil), b.lines[end.Line+1:]...)
-	b.lines = append(append(b.lines[:start.Line], merged), rest...)
+	b.lines[start.Line] = merged
+	b.lines = slices.Delete(b.lines, start.Line+1, end.Line+1)
 	b.marksDeleted(start, end)
 	b.changed(start.Line, removed, 1)
 	return text

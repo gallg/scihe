@@ -3,6 +3,7 @@ package editor
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -269,5 +270,32 @@ func TestBracketColorsAllThemes(t *testing.T) {
 				t.Errorf("%s: level %d has the error colour", name, i)
 			}
 		}
+	}
+}
+
+// the depths survive an edit above the lines drawn, and are made anew
+// from the edited line when it changes what is a string below it
+func TestColorBracketsEditChangesLiterals(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "s.py")
+	os.WriteFile(path, []byte("x = 1\n(\n)\n)\n"), 0o644)
+	e := newTestEditor(t, "")
+	typeKeys(e, ":e "+path+"<CR>:set cb<CR>G")
+	th := e.theme
+	if got := fgOfStyle(cellStyle(t, e, 3, 0)); got != th.BracketError {
+		t.Fatalf("unmatched ) on line 4: %v, want error colour", got)
+	}
+	// a string opened on line 1 takes in the brackets below it
+	typeKeys(e, `ggA"""<Esc>G`)
+	if got := fgOfStyle(cellStyle(t, e, 3, 0)); got == th.BracketError || got == th.Brackets[0] {
+		t.Fatalf("bracket inside the string coloured: %v", got)
+	}
+	// and closed again: the depths are those of a fresh scan
+	typeKeys(e, "ggu")
+	cellStyle(t, e, 3, 0)
+	got := append([]int(nil), e.brackets[e.win.buf.ID].depth...)
+	delete(e.brackets, e.win.buf.ID)
+	cellStyle(t, e, 3, 0)
+	if want := e.brackets[e.win.buf.ID].depth; !slices.Equal(got, want) {
+		t.Fatalf("depths after undo %v, fresh %v", got, want)
 	}
 }
