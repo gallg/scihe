@@ -12,6 +12,11 @@ __pycache__/
 # leftovers of an interrupted save (buffer.go writeAtomic)
 .*.scihe-*
 
+# recovery files written after a crash (editor.go saveRecovery):
+# NAME.scihe-recover, then NAME.scihe-recover.1, .2 …
+*.scihe-recover
+*.scihe-recover.*
+
 # REPL state
 .nrepl-port
 

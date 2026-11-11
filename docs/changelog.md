@@ -42,6 +42,8 @@ All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
   until much later; it is typeset as soon as ids are free again.
 - `quantile` in data expressions gives the same result on every machine
   (Apple Silicon differed in the last digit).
+- Running a notebook cell with `colorbrackets` on crashed the editor:
+  new outputs made the bracket depths be scanned from an invalid line.
 
 ## 0.2.4 — 2026-11-09
 

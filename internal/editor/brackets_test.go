@@ -299,3 +299,26 @@ func TestColorBracketsEditChangesLiterals(t *testing.T) {
 		t.Fatalf("depths after undo %v, fresh %v", got, want)
 	}
 }
+
+// a notebook bumps the version of its buffer when outputs change, with
+// no edit: the depths still hold (this crashed in 0.2.5 before release)
+func TestColorBracketsVersionWithoutEdit(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v.py")
+	os.WriteFile(path, []byte("f(a[\n1,\n2])\n)\n"), 0o644)
+	e := newTestEditor(t, "")
+	typeKeys(e, ":e "+path+"<CR>:set cb<CR>G")
+	b := e.win.buf
+	cellStyle(t, e, 3, 0)
+	b.Version++ // as nb.go does for new outputs
+	cellStyle(t, e, 3, 0)
+	b.Version++
+	if got := fgOfStyle(cellStyle(t, e, 3, 0)); got != e.theme.BracketError {
+		t.Fatalf("unmatched ) on line 4: %v, want error colour", got)
+	}
+	got := append([]int(nil), e.brackets[b.ID].depth...)
+	delete(e.brackets, b.ID)
+	cellStyle(t, e, 3, 0)
+	if want := e.brackets[b.ID].depth; !slices.Equal(got, want) {
+		t.Fatalf("depths %v, fresh %v", got, want)
+	}
+}

@@ -110,7 +110,9 @@ func (e *Editor) depthAt(b *buffer.Buffer, hl *syntax.Highlighter, l int, header
 		e.brackets[b.ID] = bd
 	}
 	if bd.hlVersion != v { // new spans from the first line edited on
-		bd.valid = min(bd.valid, bd.dirty+1)
+		if bd.dirty < bd.valid { // none edited (outputs of a notebook): all still hold
+			bd.valid = bd.dirty + 1
+		}
 		bd.hlVersion = v
 		if v == b.Version { // a result from before the last edits keeps them dirty
 			bd.dirty = math.MaxInt
