@@ -26,6 +26,7 @@ transparent = false
 leader = "<Space>"
 whichkey_delay_ms = 300
 mouse = true
+splash = true
 delete_to_register = true
 python = "python3"
 scheme = "chez"
@@ -62,6 +63,7 @@ colorbrackets = false
 | `leader` | The leader key |
 | `whichkey_delay_ms` | Delay before the key popup appears |
 | `mouse` | Enable the mouse |
+| `splash` | Show the splash screen when Scihe starts without files |
 | `delete_to_register` | Deleted text (`d`, `c`, `x`, …) goes to the register `p` pastes, as in vim. `false` keeps the last yank there instead |
 | `python` | Python interpreter, looked up on `PATH` |
 | `scheme` | Scheme REPL program |

@@ -25,8 +25,9 @@ manage: just use your own terminal multiplexer.
 - **Syntax highlighting** — ~300 languages, ~70 themes (chroma)
 - **Which-key popups** — press `Space` (or wait after any prefix) to see
   the available keys
-- **REPLs** — Scheme, Clojure (nREPL), Python and any other REPL you
-  configure; evaluate forms, cells or lines in the buffer with inline `=> result`
+- **REPLs** — Scheme, Clojure (nREPL), Python, Racket, Common Lisp (SBCL) and
+  any other REPL you configure; evaluate forms, cells or lines in the buffer:
+  the returned value is shown inline (`=> value`), printed output in the REPL log
 - **Notebooks** — open, edit and run `.ipynb` files, no Jupyter install needed;
   LaTeX outputs (sympy, `IPython.display.Math`) are typeset as formulas.
 - **Data viewer** — CSV/TSV as an aligned table: sort, filter, edit,
@@ -67,6 +68,9 @@ Then run it:
 ./scihe [+LINE] [file ...]   # files, directories, notebooks, CSV/TSV
 ```
 
+Without files it opens on a splash screen with the main keys
+(`splash = false` in the configuration turns it off).
+
 ## Requirements and dependencies
 
 Works on Linux and macOS. No configuration or extra packages are required: the
@@ -80,6 +84,7 @@ Optional tools, used when present:
 | `git` | the git interface |
 | `chez` | Scheme REPL (the `scheme` key sets the binary) |
 | `clojure` / `lein` | Clojure nREPL jack-in |
+| `racket` / `sbcl` | Racket and Common Lisp REPLs |
 | `wl-copy` / `xclip` / `xsel` | system clipboard |
 | `xdg-open` (`open` on macOS) | opening images and URLs |
 | Ghostty, kitty or Konsole | typeset formulas, as images (elsewhere they are text); inside tmux, see [Formulas](docs/formulas.md#tmux) |

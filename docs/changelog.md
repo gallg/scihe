@@ -3,6 +3,32 @@
 All notable changes to Scihe. Versions follow `MAJOR.MINOR.PATCH`;
 `scihe -version` prints the installed one.
 
+## 0.2.6 — 2026-11-19
+
+### Added
+- A splash screen when Scihe starts without files: one of 15 "scihe"
+  logos, picked at random, the version and the main keys
+  ([Getting started](getting-started.md#run)). It is fitted to the
+  terminal and redrawn when it is resized: a logo that does not fit is
+  replaced by one that does, then left out. The first edit, another
+  buffer or a split ends it; `splash = false` in the
+  [configuration](configuration.md) turns it off.
+
+### Changed
+- REPLs show the returned value inline and the output in the log, as
+  CIDER does: `(println "Hello")` shows `=> nil` inline and `Hello` in
+  the log. Printed output is no longer shown as the inline result (code
+  without a value shows `=> ✓`), and values are no longer repeated in the
+  log; a Racket or SBCL result was written there twice ([REPLs](repls.md)).
+- Python's `print(…)` and other expressions that return `None` show
+  `=> None` inline (notebook cells still show no `None`).
+- Racket and SBCL report values and errors apart from the output, with a
+  new `init` key of `[repl.NAME]`: `(display "hi")` shows `=> ✓`, an error
+  shows `!! …`, and multiple values are told apart. An SBCL error or
+  interrupt no longer leaves the evaluation waiting in the debugger; SBCL
+  now runs with `--noprint`. The start-up banner of a REPL no longer
+  appears as the output of the first evaluation.
+
 ## 0.2.5 — 2026-11-11
 
 ### Changed

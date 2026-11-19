@@ -22,7 +22,7 @@ import (
 
 // version is the release; builds can override it with
 // -ldflags "-X main.version=…".
-var version = "0.2.5"
+var version = "0.2.6"
 
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
@@ -42,6 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 	editor.SetConfigPath(*cfgPath)
+	editor.SetVersion(version)
 
 	var files []string
 	line := 0

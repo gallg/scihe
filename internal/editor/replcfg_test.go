@@ -100,3 +100,31 @@ command = "guile -q"
 		t.Fatalf("msg %q", e.msg)
 	}
 }
+
+// The built-in racket entry: the value is shown inline, the output in the
+// log, and the start-up banner in neither.
+func TestDefaultRacketRepl(t *testing.T) {
+	if _, err := exec.LookPath("racket"); err != nil {
+		t.Skip("no racket")
+	}
+	src := filepath.Join(t.TempDir(), "a.rkt")
+	os.WriteFile(src, []byte("(define (sq x) (* x x))\n(sq 7)\n(display \"hi\")\n(car 1)\n"), 0o644)
+	e := newTestEditor(t, "")
+	typeKeys(e, ":e "+src+"<CR>")
+	b := e.win.buf
+	typeKeys(e, "<Space>rt")
+	waitFor(t, e, "define", func() bool { a, ok := e.annots[b.ID][0]; return ok && a.text == "=> ✓" })
+	typeKeys(e, "2G<Space>rt")
+	waitFor(t, e, "value", func() bool { a, ok := e.annots[b.ID][1]; return ok && a.text == "=> 49" })
+	typeKeys(e, "3G<Space>rt")
+	waitFor(t, e, "output", func() bool { a, ok := e.annots[b.ID][2]; return ok && a.text == "=> ✓" })
+	typeKeys(e, "4G<Space>rt")
+	waitFor(t, e, "error", func() bool {
+		a, ok := e.annots[b.ID][3]
+		return ok && a.err && strings.Contains(a.text, "car: contract violation")
+	})
+	log := e.replLog("racket").Text()
+	if !strings.Contains(log, "hi") || strings.Contains(log, "49") || strings.Contains(log, "Welcome") {
+		t.Fatalf("log:\n%s", log)
+	}
+}

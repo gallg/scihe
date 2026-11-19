@@ -11,7 +11,7 @@ go test ./...
 go test -race ./...
 ```
 
-Some tests use `python3` and `chez` when they are installed.
+Some tests use `python3`, `chez`, `racket` and `sbcl` when they are installed.
 
 ## Packages
 
@@ -59,5 +59,6 @@ matplotlib figures.
 
 ## REPL notes
 
-The default prompts for Racket and SBCL (`prompt_regex`) have not been
-tested against those programs.
+The Racket and SBCL entries are tested with Racket 9.3 and SBCL 2.6.10
+(`TestSubprocessFramed`, `TestDefaultRacketRepl`); the tests are skipped
+when the programs are not installed.

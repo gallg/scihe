@@ -575,6 +575,9 @@ func (e *Editor) kernelEvent(ks *kernelState, ev notebook.Event) {
 			ks.buf.Version++ // force redraw of outputs and mark notebook changed
 			e.markNotebookDirty(ks)
 		} else {
+			if ev.None {
+				req.result = "None"
+			}
 			e.finishScriptEval(ks, req)
 		}
 		ks.running = nil

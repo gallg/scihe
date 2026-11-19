@@ -120,6 +120,7 @@ type Editor struct {
 	kernels    map[int]*kernelState
 	sessions   map[string]repl.Session // by [repl.NAME] entry
 	jackInProc *os.Process
+	splash     *splashState           // the start-up screen, nil once it ended
 	jobs       map[*os.Process]string // :run / :git jobs -> output buffer name
 	jobsMu     sync.Mutex
 	tempFiles  []string          // image files for :nbimage, removed on exit
@@ -229,6 +230,9 @@ func (e *Editor) Open(paths []string) {
 		e.addBuffer(b)
 		e.root = &node{win: e.newWindow(b)}
 		e.win = e.root.win
+		if e.cfg.Splash {
+			e.splash = newSplash(b)
+		}
 		return
 	}
 	var first *buffer.Buffer

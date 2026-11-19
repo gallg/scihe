@@ -34,6 +34,7 @@ type Event struct {
 	Traceback      []string       `json:"traceback"`
 	Python         string         `json:"python"`
 	Pgid           int            `json:"pgid"` // "child": the running `!command` (0: none)
+	None           bool           `json:"none"` // "done": the code ended in an expression that returned None
 }
 
 // Output converts an output event into an nbformat output object.

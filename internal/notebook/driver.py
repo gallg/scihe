@@ -262,6 +262,7 @@ def _run(code):
     _count[0] += 1
     n = _count[0]
     status = "ok"
+    last = v = None
     fname = "<cell [%d]>" % n
     linecache.cache[fname] = (len(code), None, code.splitlines(True), fname)
     try:
@@ -280,12 +281,10 @@ def _run(code):
                 if e.lineno and e.lineno <= len(code.split("\n")):
                     e.text = code.split("\n")[e.lineno - 1] + "\n"
                 raise
-        last = None
         if tree.body and isinstance(tree.body[-1], ast.Expr):
             last = ast.Expression(tree.body.pop().value)
         code_obj = compile(tree, fname, "exec")
         last_obj = compile(last, fname, "eval") if last is not None else None
-        v = None
         _armed[0] = True
         try:
             exec(code_obj, _ns)
@@ -321,7 +320,7 @@ def _run(code):
             sys.stderr.flush()
         except Exception:
             pass
-    return n, status
+    return n, status, status == "ok" and last is not None and v is None
 
 
 def main():
@@ -352,9 +351,9 @@ def main():
             continue
         _cur[0] = req.get("id", 0)
         try:
-            n, status = _run(req.get("code", ""))
+            n, status, none = _run(req.get("code", ""))
         except KeyboardInterrupt:
-            n, status = _count[0], "error"
+            n, status, none = _count[0], "error", False
         # a marker on fd 1 and 2 tells the editor that output written there
         # directly (by child processes) up to now belongs to this request
         for fd in _sync_fds:
@@ -362,7 +361,10 @@ def main():
                 os.write(fd, b"\x1dSCIHE-SYNC %d\x1d" % _cur[0])
             except OSError:
                 pass
-        _send({"id": _cur[0], "type": "done", "execution_count": n, "status": status})
+        done = {"id": _cur[0], "type": "done", "execution_count": n, "status": status}
+        if none:
+            done["none"] = True  # the code ended in an expression that returned None
+        _send(done)
 
 
 main()

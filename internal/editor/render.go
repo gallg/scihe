@@ -81,6 +81,9 @@ func (e *Editor) draw() {
 			}
 		}
 	}
+	if e.splashShown() {
+		e.drawSplash(e.win)
+	}
 	e.drawCmdline(sw, sh)
 	if e.whichKey {
 		e.drawWhichKey(sw, sh)

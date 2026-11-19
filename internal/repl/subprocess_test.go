@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"scihe/internal/config"
 )
 
 type collected struct {
@@ -48,7 +50,7 @@ func TestSubprocessWithChez(t *testing.T) {
 	if err != nil {
 		t.Skip("no chez")
 	}
-	s, err := StartSubprocess("chez", []string{bin, "-q"}, t.TempDir(), schemeSentinel, regexp.MustCompile(`^(> )+`), nil)
+	s, err := StartSubprocess("chez", []string{bin, "-q"}, t.TempDir(), "", schemeSentinel, regexp.MustCompile(`^(> )+`), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +103,7 @@ while read -r line; do
 done
 `), 0o755)
 	closed := make(chan struct{})
-	s, err := StartSubprocess("fake", []string{script}, dir, "SENTINEL {id}", regexp.MustCompile(`^(> )+`), func(error) { close(closed) })
+	s, err := StartSubprocess("fake", []string{script}, dir, "", "SENTINEL {id}", regexp.MustCompile(`^(> )+`), func(error) { close(closed) })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +137,7 @@ while read -r line; do
   esac
 done
 `), 0o755)
-	s, err := StartSubprocess("echo", []string{script}, dir, "SENTINEL {id}", nil, nil)
+	s, err := StartSubprocess("echo", []string{script}, dir, "", "SENTINEL {id}", nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,4 +184,55 @@ func TestKernelSessionExitBeforeReady(t *testing.T) {
 		t.Fatal("no error for an evaluation on a kernel that exited")
 	}
 	<-closed
+}
+
+// The built-in Racket and SBCL entries frame values and errors: output is
+// never taken for a value, and an error leaves the session usable.
+func TestSubprocessFramed(t *testing.T) {
+	cases := map[string]struct {
+		output, value, multi, multiline, printed, err, loop string
+	}{
+		// each language prints a string with a newline in its own way
+		"racket":      {`(display "hi")`, "(+ 1 2)", `(values 1 "two")`, `"a\nb"`, `"a\nb"`, "(car 1)", "(let l () (l))"},
+		"common lisp": {`(progn (princ "hi") (values))`, "(+ 1 2)", `(values 1 "two")`, `(format nil "a~%b")`, "\"a\nb\"", "(car 1)", "(loop)"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			entry := config.DefaultRepls()[name]
+			argv := strings.Fields(entry.Command)
+			if _, err := exec.LookPath(argv[0]); err != nil {
+				t.Skip("no " + argv[0])
+			}
+			s, err := StartSubprocess(name, argv, t.TempDir(), entry.Init, entry.Sentinel, regexp.MustCompile(entry.PromptRegex), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer s.Close()
+			if r := evalWait(t, s, c.output); r.val != "" || strings.TrimSpace(r.out) != "hi" {
+				t.Fatalf("output: value %q out %q", r.val, r.out)
+			}
+			if r := evalWait(t, s, c.value); r.val != "3" || r.out != "" {
+				t.Fatalf("value: value %q out %q", r.val, r.out)
+			}
+			if r := evalWait(t, s, c.multi); r.val != `"two"` {
+				t.Fatalf("values: %q", r.val)
+			}
+			if r := evalWait(t, s, c.multiline); r.val != c.printed {
+				t.Fatalf("multi-line value: %q", r.val)
+			}
+			if r := evalWait(t, s, c.err); r.err == "" || r.val != "" {
+				t.Fatalf("error: err %q value %q out %q", r.err, r.val, r.out)
+			}
+			done := make(chan collected, 1)
+			go func() { done <- evalWait(t, s, c.loop) }()
+			time.Sleep(time.Second)
+			s.Interrupt()
+			if r := <-done; r.err == "" {
+				t.Fatalf("interrupt: out %q", r.out)
+			}
+			if r := evalWait(t, s, c.value); r.val != "3" {
+				t.Fatalf("after interrupt: value %q err %q", r.val, r.err)
+			}
+		})
+	}
 }

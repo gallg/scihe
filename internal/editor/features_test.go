@@ -249,13 +249,14 @@ func TestPythonScriptEval(t *testing.T) {
 	typeKeys(e, "6G<Space>rr") // f(21)
 	waitFor(t, e, "f(21)", func() bool { a, ok := e.annots[b.ID][5]; return ok && a.text == "=> 42" })
 	typeKeys(e, "7G<Space>rr")
-	waitFor(t, e, "print", func() bool { a, ok := e.annots[b.ID][6]; return ok && a.text == "=> out" })
+	waitFor(t, e, "print", func() bool { a, ok := e.annots[b.ID][6]; return ok && a.text == "=> None" })
 	typeKeys(e, "8G<Space>rr")
 	waitFor(t, e, "error", func() bool {
 		a, ok := e.annots[b.ID][7]
 		return ok && a.err && strings.Contains(a.text, "ValueError")
 	})
-	if log := e.replLog("python").Text(); !strings.Contains(log, ">>> f(21)") {
+	// the value is shown inline, the log keeps only code and output
+	if log := e.replLog("python").Text(); !strings.Contains(log, ">>> f(21)") || !strings.Contains(log, "out") || strings.Contains(log, "42") {
 		t.Fatalf("log: %s", log)
 	}
 	if e.kernels[b.ID] != nil || e.sessions["python"] == nil {

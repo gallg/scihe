@@ -146,7 +146,7 @@ func (e *Editor) session(b *buffer.Buffer, name string, entry config.Repl) (repl
 		if entry.PromptRegex != "" {
 			prompt = regexp.MustCompile(entry.PromptRegex) // validated by config.Load
 		}
-		s, err = repl.StartSubprocess(name, splitArgs(entry.Command), e.projectDir(b), entry.Sentinel, prompt, onClose)
+		s, err = repl.StartSubprocess(name, splitArgs(entry.Command), e.projectDir(b), entry.Init, entry.Sentinel, prompt, onClose)
 	}
 	if err != nil {
 		return nil, err
@@ -265,12 +265,12 @@ func (e *Editor) evalText(b *buffer.Buffer, code string, line int, start, end Po
 	}
 	e.appendText(log, logBlock(prompt, code))
 	e.showLog(log)
-	var values []string
-	var errText, out strings.Builder
+	// as in CIDER, the log gets the output and the inline result the value
+	var value string
+	var errText strings.Builder
 	err = s.Eval(code, ns, func(r repl.Result) {
 		e.Post(func() {
 			if r.Out != "" {
-				out.WriteString(r.Out)
 				e.appendText(log, r.Out)
 			}
 			if r.Err != "" {
@@ -278,11 +278,10 @@ func (e *Editor) evalText(b *buffer.Buffer, code string, line int, start, end Po
 				e.appendText(log, r.Err)
 			}
 			if r.Value != "" {
-				values = append(values, r.Value)
-				e.appendText(log, r.Value+"\n")
+				value = r.Value
 			}
 			if r.Done && e.bufferAlive(b) {
-				e.annotateResult(b, line, errText.String(), values, out.String())
+				e.annotateResult(b, line, errText.String(), value)
 			}
 		})
 	})
@@ -292,16 +291,13 @@ func (e *Editor) evalText(b *buffer.Buffer, code string, line int, start, end Po
 }
 
 // annotateResult shows the outcome of an evaluation after line: the
-// error, else the last value, else the last line of output, else ✓.
-func (e *Editor) annotateResult(b *buffer.Buffer, line int, errText string, values []string, out string) {
+// error, else the last value, else ✓. Output is only in the log.
+func (e *Editor) annotateResult(b *buffer.Buffer, line int, errText, value string) {
 	switch {
 	case strings.TrimSpace(errText) != "":
 		e.annotate(b, line, errText, true)
-	case len(values) > 0:
-		e.annotate(b, line, values[len(values)-1], false)
-	case strings.TrimSpace(out) != "":
-		lines := strings.Split(strings.TrimSpace(out), "\n")
-		e.annotate(b, line, lines[len(lines)-1], false)
+	case value != "":
+		e.annotate(b, line, value, false)
 	default:
 		e.annotate(b, line, "✓", false)
 	}
@@ -357,20 +353,14 @@ func (e *Editor) finishScriptEval(ks *kernelState, req *nbRequest) {
 			e.appendText(log, "\n")
 		}
 	}
-	if req.result != "" && !req.err {
-		e.appendText(log, req.result+"\n")
-	}
 	if !e.bufferAlive(ks.buf) {
 		return
 	}
-	var errText string
-	var values []string
 	if req.err {
-		errText = req.result
-	} else if req.result != "" {
-		values = []string{req.result}
+		e.annotateResult(ks.buf, req.line, req.result, "")
+	} else {
+		e.annotateResult(ks.buf, req.line, "", req.result)
 	}
-	e.annotateResult(ks.buf, req.line, errText, values, req.out.String())
 }
 
 // evalCurrent evaluates the form/line (top=false) or top-level form/cell.

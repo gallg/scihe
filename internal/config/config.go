@@ -60,6 +60,7 @@ type Config struct {
 	Leader        string `toml:"leader"`
 	WhichKeyDelay int    `toml:"whichkey_delay_ms"`
 	Mouse         bool   `toml:"mouse"`
+	Splash        bool   `toml:"splash"` // the start-up screen without files
 	// DeleteToRegister: deleted text goes to the unnamed register (vim);
 	// false makes d, c, x, … keep what p pastes. Config file only.
 	DeleteToRegister bool                       `toml:"delete_to_register"`
@@ -99,6 +100,10 @@ type Repl struct {
 	// marker (subprocess kind); {id} is replaced by the request id
 	Sentinel    string `toml:"sentinel"`
 	PromptRegex string `toml:"prompt_regex"` // prompt text stripped from output lines
+	// Init is code sent once at start (subprocess kind); {nonce} is
+	// replaced. With an init, the REPL reports each value and error as a
+	// frame: "\x1dSCIHE {nonce} value|err <Scheme string literal>"
+	Init string `toml:"init"`
 }
 
 // ReplKinds and ReplReaders are the accepted values.
@@ -115,13 +120,49 @@ func DefaultRepls() map[string]Repl {
 		"scheme":  {Filetypes: []string{"scheme"}, Kind: "chez", Command: "chez", Reader: "scheme"},
 		"racket": {Filetypes: []string{"racket"}, Kind: "subprocess", Command: "racket -i", Reader: "scheme",
 			Sentinel:    `(begin (display (integer->char 29)) (display "SCIHE {id} done") (newline) (flush-output))`,
-			PromptRegex: `^(> )+`},
-		"common lisp": {Filetypes: []string{"common lisp"}, Kind: "subprocess", Command: "sbcl --noinform", Reader: "scheme",
+			PromptRegex: `^(> )+`, Init: racketInit},
+		"common lisp": {Filetypes: []string{"common lisp"}, Kind: "subprocess", Command: "sbcl --noinform --noprint", Reader: "scheme",
 			Sentinel:    `(progn (write-char (code-char 29)) (format t "SCIHE {id} done~%") (finish-output) (values))`,
-			PromptRegex: `^(\* )+`},
+			PromptRegex: `^(\* )+`, Init: sbclInit},
 		"python": {Filetypes: []string{"python"}, Kind: "kernel", Reader: "python"},
 	}
 }
+
+// racketInit frames values and errors and removes the prompt.
+const racketInit = `(begin
+ (define (scihe-frame kind s)
+   (display (integer->char 29)) (display "SCIHE {nonce} ") (display kind) (display " ")
+   (write s) (newline) (flush-output))
+ (current-print (lambda (v) (unless (void? v) (scihe-frame "value" (format "~v" v)))))
+ (error-display-handler (lambda (msg exn) (scihe-frame "err" msg)))
+ (current-prompt-read
+  (lambda () (let ([v (read-syntax)]) (if (eof-object? v) v (namespace-syntax-introduce v))))))`
+
+// sbclInit evaluates each form read through scihe-run, which frames its
+// values, and errors instead of entering the debugger. --noprint keeps
+// the REPL from printing prompts and values.
+const sbclInit = `(progn
+ (defun scihe-frame (kind s)
+   (write-char (code-char 29))
+   (format t "SCIHE {nonce} ~A \"" kind)
+   (loop for c across s
+         do (case c
+              (#\Newline (write-string "\\n"))
+              ((#\" #\\) (write-char #\\) (write-char c))
+              (t (write-char c))))
+   (write-line "\"")
+   (finish-output))
+ (defun scihe-run (form)
+   (handler-case
+       (let ((vs (multiple-value-list (eval form))))
+         (dolist (v vs) (scihe-frame "value" (let ((*print-pretty* nil)) (prin1-to-string v))))
+         (values-list vs))
+     (serious-condition (e) (scihe-frame "err" (princ-to-string e)) (values))))
+ (setf sb-int:*repl-read-form-fun*
+       (let ((read sb-int:*repl-read-form-fun*))
+         (lambda (in out)
+           (handler-case (list 'scihe-run (list 'quote (funcall read in out)))
+             (reader-error (e) (scihe-frame "err" (princ-to-string e)) '(values)))))))`
 
 // DefaultSentinel is the end-marker code for a subprocess REPL whose
 // entry sets none, by reader.
@@ -169,6 +210,10 @@ func (c *Config) finishRepls(schemeSet bool) {
 		}
 		if r.PromptRegex == "" && r.Kind == d.Kind {
 			r.PromptRegex = d.PromptRegex
+		}
+		// the init is written for the default program only
+		if r.Init == "" && r.Kind == d.Kind && r.Command == d.Command {
+			r.Init = d.Init
 		}
 		c.Repls[name] = r
 	}
@@ -259,6 +304,7 @@ func Default() *Config {
 		Leader:           "<Space>",
 		WhichKeyDelay:    300,
 		Mouse:            true,
+		Splash:           true,
 		DeleteToRegister: true,
 		Python:           "python3",
 		Scheme:           "chez",

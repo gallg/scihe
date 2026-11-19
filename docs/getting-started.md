@@ -13,6 +13,7 @@ Optional tools, used when present:
 | `git` | The git interface |
 | `chez` | Scheme REPL |
 | `clojure` or `lein` | Clojure nREPL |
+| `racket` or `sbcl` | Racket and Common Lisp REPLs |
 | `wl-copy`, `xclip` or `xsel` | System clipboard |
 | `xdg-open` (`open` on macOS) | Opening images and URLs |
 | Ghostty, kitty or Konsole | Typeset formulas, as images; elsewhere they are text ([Formulas](formulas.md), also for tmux) |
@@ -33,7 +34,10 @@ go build -o scihe ./cmd/scihe
 ```
 
 Arguments can be files, directories, notebooks or CSV/TSV files.
-`+LINE` puts the cursor on that line.
+`+LINE` puts the cursor on that line. Without arguments, Scihe starts
+with a splash screen: a logo picked at random, the version and the main
+keys. It fits the terminal size and goes away at the first edit;
+`splash = false` in the [configuration](configuration.md) turns it off.
 
 | Option | Description |
 |--------|-------------|

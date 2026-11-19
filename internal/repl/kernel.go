@@ -10,8 +10,9 @@ import (
 
 // KernelSession makes the built-in Python kernel (the one notebooks use)
 // a Session, so .py buffers are evaluated like the Lisp languages.
-// Kernel events map onto Results: stream → Out, execute_result →
-// Value, error → Err ("Name: message" first, then the traceback).
+// Kernel events map onto Results: stream → Out, execute_result (or a
+// None result on done) → Value, error → Err ("Name: message" first,
+// then the traceback).
 // Evaluations sent before the kernel is ready wait for it.
 type KernelSession struct {
 	k       *notebook.Kernel
@@ -135,7 +136,11 @@ func (s *KernelSession) event(ev notebook.Event) {
 	case "error":
 		cb(Result{Err: fmt.Sprintf("%s: %s\n%s\n", ev.Ename, ev.Evalue, strings.Join(ev.Traceback, "\n"))})
 	case "done":
-		cb(Result{Done: true})
+		if ev.None {
+			cb(Result{Value: "None", Done: true})
+		} else {
+			cb(Result{Done: true})
+		}
 	}
 }
 

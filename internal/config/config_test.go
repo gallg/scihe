@@ -10,6 +10,7 @@ func TestLoadMerge(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "c.toml")
 	os.WriteFile(p, []byte(`
 theme = "nord"
+splash = false
 [options]
 tabstop = 8
 [filetype.python]
@@ -26,8 +27,11 @@ tabstop = 2
 	if c.Theme != "nord" || c.Options.TabStop != 8 {
 		t.Fatalf("bad top-level: %+v", c)
 	}
-	if !c.Options.Number {
+	if !c.Options.Number || !c.Mouse {
 		t.Fatal("unset option lost its default")
+	}
+	if c.Splash {
+		t.Fatal("splash = false not loaded")
 	}
 	if o := c.ForFiletype("go"); o.TabStop != 2 || o.ExpandTab {
 		t.Fatalf("go override merge: %+v", o)
@@ -37,6 +41,28 @@ tabstop = 2
 	}
 	if c.Keys["normal"]["<leader>w"] != ":w" {
 		t.Fatal("keys not loaded")
+	}
+}
+
+// the default init is written for the default program: another command
+// does not get it
+func TestReplInitFollowsCommand(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "c.toml")
+	os.WriteFile(p, []byte(`
+[repl.racket]
+command = "chez -q"
+[repl."common lisp"]
+prompt_regex = '^\* '
+`), 0o644)
+	c, err := Load(p)
+	if err != nil || len(c.Warnings) != 0 {
+		t.Fatalf("%v %v", err, c.Warnings)
+	}
+	if c.Repls["racket"].Init != "" {
+		t.Fatal("init kept for another command")
+	}
+	if c.Repls["common lisp"].Init != sbclInit {
+		t.Fatal("init lost with the default command")
 	}
 }
 

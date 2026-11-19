@@ -20,6 +20,9 @@ import (
 // marker belongs to that request, and its last non-empty line is the
 // value. Standard error is merged with standard output, so errors are not
 // told apart from output: this is the price of a protocol-free REPL.
+// An init code that makes the REPL frame its values and errors
+// ("\x1dSCIHE <nonce> value|err <string literal>") lifts that limit: the
+// frames are the only values, and the rest is output.
 type Subprocess struct {
 	name     string
 	cmd      *exec.Cmd
@@ -27,6 +30,7 @@ type Subprocess struct {
 	sentinel string
 	prompt   *regexp.Regexp
 	nonce    string // random per session: output cannot fake an end marker
+	framed   bool   // started with an init: values and errors come in frames
 	writes   chan string
 	done     chan struct{}
 	once     sync.Once
@@ -46,10 +50,11 @@ type subReq struct {
 
 const subMarker = chezMarker // "\x1dSCIHE ": the same marker as the Chez driver
 
-// StartSubprocess launches argv in dir. sentinel must print the end
-// marker with {id} replaced by the request id; prompt (optional) is
-// stripped from the start of output lines.
-func StartSubprocess(name string, argv []string, dir, sentinel string, prompt *regexp.Regexp, onClose func(error)) (*Subprocess, error) {
+// StartSubprocess launches argv in dir. init (optional) is sent first,
+// with {nonce} replaced; sentinel must print the end marker with {id}
+// replaced by the request id; prompt (optional) is stripped from the
+// start of output lines.
+func StartSubprocess(name string, argv []string, dir, init, sentinel string, prompt *regexp.Regexp, onClose func(error)) (*Subprocess, error) {
 	if len(argv) == 0 {
 		return nil, errors.New("no command")
 	}
@@ -73,8 +78,14 @@ func StartSubprocess(name string, argv []string, dir, sentinel string, prompt *r
 		return nil, err
 	}
 	s := &Subprocess{name: name, cmd: cmd, stdin: stdin, sentinel: sentinel, prompt: prompt,
-		nonce:  strconv.FormatInt(rand.Int64N(1<<62), 36),
+		nonce: strconv.FormatInt(rand.Int64N(1<<62), 36), framed: init != "",
 		writes: make(chan string, 256), done: make(chan struct{}), onClose: onClose}
+	// request 0 takes the start-up output (banner, init): it is no result
+	s.queue = []*subReq{{id: 0, cb: func(Result) {}}}
+	if init != "" {
+		s.writes <- strings.ReplaceAll(init, "{nonce}", s.nonce) + "\n"
+	}
+	s.writes <- s.marker(0)
 	go s.readLoop(stdout)
 	go s.writeLoop()
 	return s, nil
@@ -102,7 +113,7 @@ func (s *Subprocess) Eval(code, ns string, cb func(Result)) error {
 	s.queue = append(s.queue, &subReq{id: id, cb: cb})
 	s.mu.Unlock()
 	// the blank line ends an indented block (Python) before the sentinel
-	msg := strings.TrimRight(code, "\n") + "\n\n" + strings.ReplaceAll(s.sentinel, "{id}", s.nonce+"-"+strconv.Itoa(id)) + "\n"
+	msg := strings.TrimRight(code, "\n") + "\n\n" + s.marker(id)
 	select {
 	case s.writes <- msg:
 		return nil
@@ -117,6 +128,11 @@ func (s *Subprocess) Eval(code, ns string, cb func(Result)) error {
 		}
 		return nil // the process ended meanwhile: the request was completed with its error
 	}
+}
+
+// marker is the sentinel code that ends request id.
+func (s *Subprocess) marker(id int) string {
+	return strings.ReplaceAll(s.sentinel, "{id}", s.nonce+"-"+strconv.Itoa(id)) + "\n"
 }
 
 func (s *Subprocess) writeLoop() {
@@ -173,6 +189,20 @@ func (s *Subprocess) handleLine(line string) {
 	if len(s.queue) > 0 {
 		head = s.queue[0]
 	}
+	if kind, payload, ok := s.frame(marker); hasMarker && ok {
+		s.mu.Unlock()
+		if head != nil {
+			if strings.TrimSpace(text) != "" {
+				head.cb(Result{Out: text + "\n"})
+			}
+			if kind == "value" {
+				head.cb(Result{Value: payload})
+			} else {
+				head.cb(Result{Err: payload + "\n"})
+			}
+		}
+		return
+	}
 	if hasMarker {
 		f := strings.Fields(marker)
 		nonce, num, _ := strings.Cut(f0(f), "-")
@@ -191,7 +221,11 @@ func (s *Subprocess) handleLine(line string) {
 					head.cb(Result{Out: text + "\n"})
 				}
 				for _, q := range finished {
-					q.cb(Result{Value: q.last, Done: true})
+					if s.framed {
+						q.cb(Result{Done: true})
+					} else {
+						q.cb(Result{Value: q.last, Done: true})
+					}
 				}
 				return
 			}
@@ -204,6 +238,16 @@ func (s *Subprocess) handleLine(line string) {
 	if head != nil && line != "" {
 		head.cb(Result{Out: line})
 	}
+}
+
+// frame parses a value or error frame: "<nonce> value|err <literal>".
+func (s *Subprocess) frame(marker string) (kind, payload string, ok bool) {
+	f := strings.SplitN(strings.TrimRight(marker, "\r\n"), " ", 3)
+	if len(f) != 3 || f[0] != s.nonce || (f[1] != "value" && f[1] != "err") {
+		return "", "", false
+	}
+	payload, err := ParseSchemeString(f[2])
+	return f[1], payload, err == nil
 }
 
 func f0(f []string) string {

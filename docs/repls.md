@@ -1,8 +1,12 @@
 # REPLs
 
 Scihe sends code to a running REPL and shows the result after the code:
-`=> value` or `!! error`. There is one session per language, so all
-`.py` buffers share the same Python session.
+`=> value` or `!! error`, as CIDER does. The value is what the code
+returns, not what it prints: `(println "Hello")` shows `=> nil`, and
+`Hello` goes to the log. Python's `print("Hello")` shows `=> None`. Code
+that returns no value (a Python statement, a Scheme `(void)`) shows
+`=> ✓`. There is one session per language, so all `.py` buffers share
+the same Python session.
 
 ## Evaluating
 
@@ -16,7 +20,7 @@ Scihe sends code to a running REPL and shows the result after the code:
 
 | Key | Description |
 |-----|-------------|
-| `Space r l` | Show the log of code and results |
+| `Space r l` | Show the log of code, output and errors |
 | `Space r x` | Clear the inline results |
 | `Space r i` | Interrupt |
 | `Space r q` | Quit the REPL |
@@ -70,6 +74,7 @@ prompt_regex = '^(scheme@\(guile-user\)> )+'
 | `kind` | Connection type, see below |
 | `prompt_regex` | Prompt text to remove from the output |
 | `sentinel` | Code that prints the end marker (`{id}` is replaced) |
+| `init` | Code sent once at start that frames values and errors (`{nonce}` is replaced) |
 
 | Kind | Description |
 |------|-------------|
@@ -79,9 +84,24 @@ prompt_regex = '^(scheme@\(guile-user\)> )+'
 | `kernel` | Python (the `python` entry) |
 
 With `subprocess`, Scihe sends a short *sentinel* expression after each
-evaluation. It prints a marker that shows where the output ends. The
-last output line is the inline result. Errors are mixed with the output,
-and interrupting sends `SIGINT`.
+evaluation. It prints a marker that shows where the output ends.
+Interrupting sends `SIGINT`.
 
-If the Racket or SBCL prompts aren't removed, adjust `command` or
-`prompt_regex`.
+Without `init`, the last output line is the inline result, as the REPL
+prints values and output alike, and errors are mixed with the output.
+With `init`, the REPL prints each value and error on a line of its own
+(`\x1d` is the character with code 29):
+
+```text
+\x1dSCIHE {nonce} value "<value as printed, in a Scheme string literal>"
+\x1dSCIHE {nonce} err "<message>"
+```
+
+The `racket` and `common lisp` entries come with an `init`, used while
+their `command` is the default one. Racket prints values with
+`current-print` and errors with `error-display-handler`, and shows no
+prompt. SBCL runs with `--noprint` and evaluates each form through
+`scihe-run`: an error is reported instead of entering the debugger. For
+restarts and the debugger, run SBCL in a terminal.
+
+If a REPL's prompts aren't removed, adjust `command` or `prompt_regex`.
